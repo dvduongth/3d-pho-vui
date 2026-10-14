@@ -7,7 +7,10 @@ export function newBoardGame(chinese:boolean):BoardGame{
  else for(let x=0;x<8;x++){cells[8+x]=-1;cells[48+x]=1;}
  const s={cells,turn:1,chinese,rights:[true,true,true,true],ep:-1,quiet:0,history:[] as string[]};s.history=[position(s)];return s;
 }
-export function position(s:BoardGame){return s.cells.join(',')+'/'+s.turn+'/'+s.rights.join('')+'/'+s.ep;}
+export function position(s:BoardGame){
+ const ep=s.ep>=0&&legalMoves(s).some(m=>m.to===s.ep&&Math.abs(s.cells[m.from])===1&&m.from%8!==m.to%8)?s.ep:-1;
+ return s.cells.join(',')+'/'+s.turn+'/'+s.rights.join('')+'/'+ep;
+}
 function pseudo(s:BoardGame,from:number,attack=false):Move[]{
  const w=s.chinese?9:8,h=s.chinese?10:8,p=s.cells[from],side=Math.sign(p),kind=Math.abs(p),x=from%w,y=Math.floor(from/w),out:Move[]=[];
  const add=(xx:number,yy:number)=>{if(xx>=0&&xx<w&&yy>=0&&yy<h&&(attack||Math.sign(s.cells[yy*w+xx])!==side))out.push({from,to:yy*w+xx});};
@@ -46,7 +49,14 @@ function apply(s:BoardGame,m:Move):BoardGame{
  }
  n.turn=-s.turn;n.quiet=taken||Math.abs(p)===1?0:s.quiet+1;return n;
 }
-export function legalMoves(s:BoardGame):Move[]{const out:Move[]=[];s.cells.forEach((p,i)=>{if(Math.sign(p)!==s.turn)return;for(const m of pseudo(s,i))if(Math.abs(s.cells[m.to])!==6&&!inCheck(apply(s,m),s.turn))out.push(m);});return out;}
-export function movePiece(s:BoardGame,m:Move){const n=apply(s,m);n.history=[...s.history,position(n)];return n;}
+export function legalMoves(s:BoardGame):Move[]{const out:Move[]=[];s.cells.forEach((p,i)=>{if(Math.sign(p)!==s.turn)return;for(const m of pseudo(s,i)){
+ const choices=!s.chinese&&Math.abs(p)===1&&(m.to<8||m.to>=56)?[5,4,3,2].map(promotion=>({...m,promotion})):[m];
+ for(const choice of choices)if(Math.abs(s.cells[m.to])!==6&&!inCheck(apply(s,choice),s.turn))out.push(choice);
+ }});return out;}
+export function movePiece(s:BoardGame,m:Move){
+ const legal=legalMoves(s).find(candidate=>candidate.from===m.from&&candidate.to===m.to&&(candidate.promotion===undefined?m.promotion===undefined:candidate.promotion===(m.promotion??5)));
+ if(!legal)throw new Error('Nước cờ không hợp lệ');
+ const n=apply(s,legal);n.history=[...s.history,position(n)];return n;
+}
 export function boardResult(s:BoardGame){if(!legalMoves(s).length)return !s.chinese&&!inCheck(s)?'draw':s.turn===1?'lose':'win';if(s.history.filter(p=>p===position(s)).length>=3)return 'draw';if(!s.chinese){if(s.quiet>=100)return 'draw';const rest=s.cells.filter(p=>p&&Math.abs(p)!==6);if(!rest.length||(rest.length===1&&[2,3].includes(Math.abs(rest[0]))))return 'draw';}return 'playing';}
 export function computerMove(s:BoardGame){const values=s.chinese?[0,1,4,2,9,5,100,2]:[0,1,3,3,5,9,100];return legalMoves(s).map(m=>({m,score:values[Math.abs(s.cells[m.to])]*10+(inCheck(movePiece(s,m))?3:0)+Math.random()})).sort((a,b)=>b.score-a.score)[0]?.m;}

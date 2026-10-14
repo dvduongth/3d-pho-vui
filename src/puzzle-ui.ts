@@ -19,7 +19,7 @@ const colors=[C.cream,C.gold,C.pink,C.leaf,C.lavender,C.water];
 const symbols=['','✦','♥','♣','◆','●'];
 type Nugget={x:number;y:number;r:number;value:number;mass:number;rock:boolean;taken:boolean};
 export function createPuzzleUI(show:(title:string,body:string)=>void,sound:(hz?:number,duration?:number)=>void){
- let zoomed=false;
+ let zoomed=false,promotion=5;
  let game=-1,b:number[]=[],selected=-1,score=0,moves=0,remaining=20,status='',ended='',aiWait=0,elapsed=0,dropTime=0,lines=0;
  let piece:number[][]=[],px=3,py=0,pieceColor=1,bag:number[]=[],nextPiece=0;
  let chess:BoardGame=newBoardGame(false),oan:OAn=newOAn(),direction=1;
@@ -49,10 +49,10 @@ export function createPuzzleUI(show:(title:string,body:string)=>void,sound:(hz?:
   else if(kind==='match'||kind==='lines'){content=value?symbols[value]:'';cls=value?'gem gem-'+value:'empty';name=value?'Màu '+value+', hàng '+(Math.floor(i/w)+1)+', cột '+(i%w+1):'Ô trống';}
   else if(kind==='chess'||kind==='xiangqi'){
    const type=Math.abs(value),positive=value>0;cls=((Math.floor(i/w)+i%w)%2?'dark ':'light ')+(positive?'human':'computer');
-   if(value)content=kind==='chess'?['','♟','♞','♝','♜','♛','♚'][type]:['','Tốt','Mã','Tượng','Xe','Pháo','Tướng','Sĩ'][type];
+   if(value)content=kind==='chess'?(positive?['','♙','♘','♗','♖','♕','♔']:['','♟','♞','♝','♜','♛','♚'])[type]:['','Tốt','Mã','Tượng','Xe','Pháo','Tướng','Sĩ'][type];
    name=(value?(positive?'Bạn ':'Máy ')+['','Tốt','Mã','Tượng','Xe',kind==='chess'?'Hậu':'Pháo',kind==='chess'?'Vua':'Tướng','Sĩ'][type]:'Ô trống')+', '+(Math.floor(i/w)+1)+','+(i%w+1);
   }
-  return '<button data-cell="'+i+'" aria-label="'+name+'" class="'+cls+(selected===i?' selected':'')+(legal.includes(i)?' legal':'')+'">'+content+'</button>';
+  return '<button data-cell="'+i+'" title="'+name+'" aria-label="'+name+'" class="'+cls+(selected===i?' selected':'')+(legal.includes(i)?' legal':'')+'">'+content+'</button>';
  }).join('')+'</div>';}
  function render(){
   let body='',extra='',stats='Điểm '+score;
@@ -75,6 +75,8 @@ export function createPuzzleUI(show:(title:string,body:string)=>void,sound:(hz?:
     viewport.onpointerup=()=>drag=null;viewport.onpointercancel=()=>drag=null;viewport.addEventListener('click',e=>{if(moved){e.stopPropagation();e.preventDefault();moved=false;}},true);
    }
   }
+  const promotionSelect=document.getElementById('promotion') as HTMLSelectElement|null;
+  if(promotionSelect){promotionSelect.value=String(promotion);promotionSelect.onchange=()=>{promotion=Number(promotionSelect.value);};}
   document.querySelectorAll<HTMLButtonElement>('#puzzle-screen [data-cell]').forEach(button=>button.onclick=()=>cell(Number(button.dataset.cell)));
   document.querySelectorAll<HTMLButtonElement>('#puzzle-screen [data-action]').forEach(button=>button.onclick=()=>action(button.dataset.action!));
  }
@@ -82,7 +84,7 @@ export function createPuzzleUI(show:(title:string,body:string)=>void,sound:(hz?:
   if(game===0){const zero=b.indexOf(0);if(adjacent(i,zero,3)){[b[i],b[zero]]=[b[zero],b[i]];moves++;sound(500);if(b.every((v,j)=>v===(j+1)%9))return finish('Hoàn thành bức số!');}else status='Chọn ô nằm sát khoảng trống.';}
   if(game===2){if(selected<0){selected=i;}else if(selected===i)selected=-1;else if(!adjacent(selected,i,7))selected=i;else{const first=selected;selected=-1;[b[first],b[i]]=[b[i],b[first]];if(!matches(b,7,3).length){[b[first],b[i]]=[b[i],b[first]];status='Chưa tạo bộ 3, không mất nước.';}else{remaining--;let chain=0,found=matches(b,7,3);while(found.length&&chain<40){score+=found.length*10;found.forEach(j=>b[j]=0);collapse(b);chain++;found=matches(b,7,3);}status='Ghép đẹp! Liên hoàn '+chain+' lần.';sound(650);if(score>=500)return finish('Bạn thắng Match-3!');if(remaining===0)return finish('Hết nước! Thử thêm một lượt nhé.');if(found.length||!canSwap(b)){do{b=newMatch();}while(!canSwap(b));status+=' Đã xáo bàn để có nước đi.';}}}}
   if(game===3){if(b[i])selected=i;else if(selected>=0){if(!linePath(b,selected,i))status='Không có đường trống tới ô đó.';else{b[i]=b[selected];b[selected]=0;selected=-1;moves++;const found=matches(b,9,5,true);if(found.length){score+=found.length*10;found.forEach(j=>b[j]=0);sound(750);}else addBalls();if(score>=100)return finish('Bạn thắng Lines!');if(b.every(Boolean))return finish('Bàn đã đầy!');}}}
-  if(game===4||game===5){if(chess.turn!==1)return;if(chess.cells[i]>0){selected=i;status='Chọn một ô được đánh dấu.';}else if(selected>=0){const m=legalMoves(chess).find(m=>m.from===selected&&m.to===i);if(!m){status='Nước đi này không hợp lệ.';}else{if(game===4)m.promotion=Number((document.getElementById('promotion') as HTMLSelectElement).value);chess=movePiece(chess,m);moves++;selected=-1;sound(500);if(endBoard())return;status='Máy đang suy nghĩ…';aiWait=.45;}}}
+  if(game===4||game===5){if(chess.turn!==1)return;if(chess.cells[i]>0){selected=i;status=game===4?['','Tốt: đi thẳng, ăn chéo; bước đầu có thể đi 2 ô.','Mã: đi chữ L (2 + 1 ô), được nhảy qua quân.','Tượng (Tịnh): đi chéo, không nhảy qua quân.','Xe: đi ngang hoặc dọc, không nhảy qua quân.','Hậu: đi ngang, dọc hoặc chéo, không nhảy qua quân.','Vua: đi 1 ô; không được vào ô bị tấn công.'][chess.cells[i]]:'Chọn một ô được đánh dấu.';if(!legalMoves(chess).some(m=>m.from===i))status+=' Chưa có nước hợp lệ: bị chắn hoặc sẽ lộ vua/tướng.';}else if(selected>=0){const m=legalMoves(chess).find(m=>m.from===selected&&m.to===i&&(m.promotion===undefined||m.promotion===promotion));if(!m){status='Nước đi không hợp lệ: kiểm tra đường đi, quân chắn và an toàn của vua/tướng.';}else{chess=movePiece(chess,m);moves++;selected=-1;sound(500);if(endBoard())return;status='Máy đang suy nghĩ…';aiWait=.45;}}}
   if(game===6){if(oan.turn===0&&ownPits(0).includes(i)&&oan.pits[i]){selected=i;status='Đã chọn ô '+i+'. Chọn chiều rải.';}else status='Chọn ô dân có hạt ở hàng dưới.';}
   render();
  }
