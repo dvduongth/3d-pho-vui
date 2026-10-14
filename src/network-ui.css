@@ -1,0 +1,9 @@
+.connectionbar{top:205px;bottom:auto;left:26px;display:grid;gap:8px;width:280px;text-shadow:none}
+.connectionbar button{font-size:14px;line-height:1.35;min-height:40px;padding:9px 12px;white-space:normal;text-align:left;overflow-wrap:anywhere;background:linear-gradient(#fff1dce8,#ead9e4ed)}
+#ui:not(.playing) .connectionbar{left:auto;right:26px;top:110px}
+.touchmode .connectionbar button{min-height:82px;font-size:19px}
+.catchline{padding:12px 14px;background:#fff7e6;border-left:4px solid #a18ac2;border-radius:12px;overflow-wrap:anywhere}
+#tugreeting{overflow-wrap:anywhere;font-size:15px;line-height:1.45}
+#towncatches{font-size:16px;line-height:1.5}
+.fishcard{max-height:530px;overflow-y:auto;scrollbar-color:#a18ac2 #f6e8cf;scrollbar-width:thin;overscroll-behavior:contain;touch-action:pan-y}
+.touchmode .fishcard{max-height:500px}

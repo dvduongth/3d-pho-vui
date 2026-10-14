@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {newCarnival,rollLuck,resolve,begin,trade,parseCarnival,describe} from '../src/carnival.ts';
+const sequence=(...values:number[])=>{let i=0;return (sides:number)=>{const v=values[i++];assert.ok(v>=1&&v<=sides,'valid scripted die');return v;};};
+let c=newCarnival();let r=rollLuck(c,3,0,sequence(10,1,2,4));assert.equal(r.total,17);assert.equal(c.luck,-2);
+r=rollLuck(c,0,0,sequence(3,1));assert.equal(r.total,-2);assert.equal(c.luck,0,'debt repayment and natural 1 both recover Luck');
+c.luck=-2;r=rollLuck(c,1,0,sequence(7,4));assert.equal(r.penalty,0);assert.equal(c.luck,-3);
+assert.equal(parseCarnival(JSON.parse(JSON.stringify(c)))?.luck,-3,'debt persists');
+assert.equal(parseCarnival({...c,luck:NaN}),null);
+function fresh(stall:number){const c=newCarnival();c.tickets=5;assert.equal(begin(c,stall),true);assert.equal(c.tickets,4);assert.equal(begin(c,stall),false);return c;}
+c=fresh(0);resolve(c,'play',0,sequence(18));assert.equal(c.small,1);assert.equal(resolve(c,'play',0,sequence(20)),null,'finished attempt cannot reward twice');
+c=fresh(0);resolve(c,'play',0,sequence(19));assert.deepEqual(c.components,[0]);
+c=fresh(1);resolve(c,'small-ring',0,sequence(6));resolve(c,'play',0,sequence(19));resolve(c,'small-ring',0,sequence(7));assert.equal(c.small,1);assert.equal(c.big,1);assert.equal(c.attempt,null);
+c=fresh(2);resolve(c,'play',0,sequence(12));resolve(c,'play',0,sequence(15));resolve(c,'play',0,sequence(17));assert.equal(c.big,1);
+c=fresh(2);resolve(c,'play',0,sequence(11));assert.equal(c.attempt,null);assert.equal(c.big,0);
+c=newCarnival();c.recruits=5;c.tickets=1;begin(c,3);resolve(c,'play',0,sequence(15));assert.deepEqual(c.components,[3]);assert.equal(c.recruits,0);
+c=fresh(3);resolve(c,'play',0,sequence(10));assert.equal(c.small,1);assert.equal(c.big,0);
+c=fresh(4);resolve(c,'play',0,sequence(20));assert.equal(c.attempt?.bottles,1,'critical only knocks one bottle');
+resolve(c,'play',0,sequence(11,4));assert.equal(c.attempt?.bottles,6);assert.equal(resolve(c,'play',0,sequence(20)),null,'Wisdom comes after two throws');
+resolve(c,'wisdom',0,sequence(12));resolve(c,'intelligence',0,sequence(15));resolve(c,'play',0,sequence(11));assert.equal(c.big,1);assert.equal(c.medium,1);assert.deepEqual(c.components,[4]);assert.equal(c.attempt,null);
+c=fresh(4);c.milkInsight=true;c.luck=-1;assert.equal(resolve(c,'intelligence',0,sequence(20)),null,'negative Luck forbids puzzle check');
+c=fresh(5);resolve(c,'play',1,sequence(17,3));assert.equal(c.big,1,'Luck modifies duck result');
+c=fresh(5);resolve(c,'play',1,sequence(20,2));assert.equal(c.big,0,'duck requires exactly 20');assert.equal(c.small,1,'even natural die still wins small prize');
+c=newCarnival();c.small=9;for(let i=0;i<3;i++)assert.equal(trade(c,'medium',0),true);assert.equal(trade(c,'big',5),true);assert.equal(c.small,0);assert.equal(c.medium,0);assert.deepEqual(c.components,[5]);assert.equal(trade(c,'big',5),false);
+c=newCarnival();r=rollLuck(c,10000,0,()=>1);assert.ok(describe(r).length<500,'many dice keep save below size limit');
+console.log('Carnival rules passed: Luck and debt, six stalls, multi-step attempts, critical bottles, puzzle, trading, persistence.');

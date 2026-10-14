@@ -1,0 +1,6 @@
+# A4 rule 1 ("chay duoc ngay sau pnpm install + pnpm dev") fails without this:
+# pnpm's build-script gate skips esbuild's postinstall, so `pnpm dev` exits 1
+# with ERR_PNPM_IGNORED_BUILDS before Vite starts. The repo root carries the
+# same line for the same reason.
+allowBuilds:
+  esbuild: true

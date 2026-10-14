@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {slide2048, canMove2048, birdHits, ringHit} from '../src/fair-rules.ts';
+const board=(row:number[])=>[...row,...Array(12).fill(0)];
+assert.deepEqual(slide2048(board([2,2,2,2]),'left'),{board:board([4,4,0,0]),score:8,changed:true});
+assert.deepEqual(slide2048(board([2,2,4,0]),'left'),{board:board([4,4,0,0]),score:4,changed:true},'newly merged tiles cannot merge twice');
+assert.deepEqual(slide2048(board([2,0,2,4]),'right').board,board([0,0,4,4]));
+assert.equal(slide2048(board([2,4,0,0]),'left').changed,false,'invalid move must not spawn a tile');
+assert.deepEqual(slide2048([2,0,0,0,2,0,0,0,4,0,0,0,4,0,0,0],'down').board,[0,0,0,0,0,0,0,0,4,0,0,0,8,0,0,0]);
+assert.equal(canMove2048([2,4,2,4,4,2,4,2,2,4,2,4,4,2,4,2]),false);
+assert.equal(canMove2048([2,4,2,4,4,2,4,2,2,4,2,4,4,2,4,4]),true);
+assert.equal(slide2048(board([1024,1024,0,0]),'left').board[0],2048);
+assert.equal(birdHits(5,-3.5,5,3.5),false);
+assert.equal(birdHits(3.4,-3.5,5,3.5),true,'bird radius counts at gap edge');
+assert.equal(birdHits(3.4,3,5,3.5),false,'distant pipe cannot hit');
+assert.equal(birdHits(.2,8,5,3.5),true);
+assert.equal(birdHits(9.8,8,5,3.5),true);
+assert.equal(ringHit(-3.1),0);assert.equal(ringHit(.47),1);assert.equal(ringHit(3.2),2);assert.equal(ringHit(1),-1);
+console.log('Fair rules passed: directional merges, no double merge, stuck board, 2048, collision, ring scoring.');
