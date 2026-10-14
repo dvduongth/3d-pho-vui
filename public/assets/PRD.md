@@ -1,7 +1,8 @@
-# Phố Vui (Happy Street) — GDD v1.1
+# Phố Vui (Happy Street) — GDD v1.2
 
 > **Author:** daniel duong · **Ngày:** 14/10/2026  
 > **Cập nhật v1.1:** bổ sung §17 về minigame hội chợ, căn lực–Luck, lưu lượt riêng theo quầy và công cụ thử nghiệm. Giữ cấu trúc §1–16; §17 ghi rõ phạm vi thay thế và tình trạng triển khai.
+> **Cập nhật v1.2:** bổ sung §18 với tám sạp puzzle, luật phiên chơi và giới hạn bản đấu máy.
 > **Tài liệu:** Game PRD, giữ cấu trúc GDD v1 và cập nhật các quyết định đã chốt trong phỏng vấn.  
 > **Trạng thái:** ĐÃ CHỐT về hướng thiết kế; các giá trị `Proposed` cần kiểm chứng bằng playtest. Không mặc định các hệ thống đã được triển khai.  
 > **Nguồn sự thật duy nhất về cơ chế chơi:** tài liệu này. Các tài liệu lịch sử không được ghi đè những quyết định bên dưới.  
@@ -494,3 +495,35 @@ Caro chị Hoa tiếp tục dùng luật ở §5 và §12, có ván không cư�
 Đã chạy kiểm tra TypeScript và các test logic liên quan: 2048/va chạm/ném vòng, luật sáu quầy, căn lực–Luck, công cụ thử nghiệm, lưu tiến độ, đổi qua sáu quầy và khôi phục lượt không trừ lại vé.
 
 Chưa xác nhận bằng playtest trực quan cho các màn hội chợ mới; chưa đo FPS trên thiết bị mục tiêu, chưa kiểm chứng đầy đủ cảm ứng landscape, cân bằng vé/Luck/quà hoặc E2E nhiều người. Chưa triển khai thi đấu minigame online, phần thưởng được server xác thực, giao chiến với nhân viên hay công dụng tiếp theo của bộ sáu linh kiện.
+
+## 18. Khu sạp puzzle — cập nhật v1.2
+
+**Yêu cầu đã chốt:** mỗi trò có một sạp/NPC, màn chơi và điều khiển riêng. Giữ Three.js, Vite, TypeScript và phong cách phố hiện tại. Mở qua NPC hoặc **Trò chơi → tên trò**.
+
+**Phạm vi hiện triển khai:** miễn phí, chơi cá nhân hoặc đấu máy, không tiêu vé/Luck, không thưởng xu hoặc điểm bảng vàng. Không thêm RNG vào các nước cờ hợp lệ. Bộ ba trò hội chợ trước và sáu quầy căn lực tiếp tục hoạt động độc lập.
+
+| NPC | Trò | Luật và mục tiêu hiện dùng |
+|---|---|---|
+| Cô Hạnh | Xếp hình trượt | Bàn 3×3, tám ô số và một ô trống. Chạm ô sát chỗ trống hoặc dùng phím mũi tên; xếp 1–8 theo thứ tự, trống cuối bàn. Bàn được trộn bằng các nước hợp lệ nên có lời giải |
+| Anh Nam | Xếp gạch | Bàn 10×18, bảy dạng khối, túi trộn bảy khối và khối tiếp theo. Trái/phải, xoay, hạ hoặc thả nhanh bằng Space. Xoá 10 hàng để thắng; không sinh được khối mới thì thua. Tốc độ tăng theo số hàng |
+| Chị Đào | Match-3 | Bàn 7×7, năm màu/ký hiệu. Đổi hai ô kề để ghép ít nhất ba. Đổi không tạo bộ thì hoàn lại, không mất nước. Có rơi và liên hoàn; không còn nước thì xáo bàn. Mục tiêu 500 điểm trong 20 nước |
+| Anh Lâm | Lines | Bàn 9×9, chọn bóng rồi chọn ô trống có đường đi. Nối ít nhất năm cùng màu theo hàng, cột hoặc chéo. Lượt không xoá thì thêm ba bóng; mỗi bóng xoá được 10 điểm. Mục tiêu 100 điểm; bàn đầy thì thua |
+| Ông Minh | Cờ vua | Người chơi Trắng, máy Đen. Hiện nước hợp lệ, chặn tự chiếu, có nhập thành, bắt tốt qua đường, chọn quân phong cấp và chiếu hết. Có hoà hết nước khi không bị chiếu, lặp vị trí ba lần, 50 nước không bắt quân/đi tốt, và một số thế thiếu quân cơ bản |
+| Ông Phúc | Cờ tướng | Người chơi Đỏ, máy Đen. Có cung, sông, cản chân mã, mắt tượng, ngòi pháo và cấm lộ mặt tướng. Hết nước hợp lệ thì thua. Bản casual cho hoà khi lặp vị trí ba lần; chưa phân xử luật chiếu/đuổi liên tục chuyên nghiệp |
+| Bà Thu | Ô ăn quan | Hai quan ban đầu 10 điểm mỗi ô, mười ô dân 5 hạt mỗi ô. Chọn ô dân của mình và chiều rải; có rải chuyền, bắt qua ô trống và dừng khi gặp quan. Hết cả hai quan thì thu dân còn lại và so điểm. Hết dân dùng năm điểm rải lại; thiếu thì ghi nợ, trừ cuối ván |
+| Chú Quang | Đào vàng | Canh móc lắc, bấm Thả móc hoặc Space. Vàng 100/150 điểm, đá 20; vật nặng kéo chậm. Mục tiêu 500 điểm trong 60 giây. Không sử dụng vé hoặc Luck |
+
+### 18.1. Giao diện và vòng chơi
+
+- Tên trò và điểm/tiến độ ở đầu màn, hướng dẫn và điều khiển bên trái, bàn chơi ở giữa, phản hồi ở dưới. Có kết quả, chơi lại và về phố.
+- Nút Chơi lại giữa ván yêu cầu bấm xác nhận lần nữa; chơi lại sau kết quả bắt đầu ngay, không tải lại trang.
+- Bàn Match-3, Lines, cờ vua và cờ tướng có **Phóng to bàn**, kéo để xem trên điện thoại ngang. Nước cờ hợp lệ có dấu riêng; ô màu puzzle có cả ký hiệu.
+- Máy chọn nước hợp lệ, ưu tiên bắt quân và chiếu; mức chơi cơ bản, không phải engine cờ chuyên nghiệp. Ô ăn quan có đối thủ máy chọn hướng rải.
+- Mỗi lần mở một sạp bắt đầu ván mới. Ván và kỷ lục puzzle **chưa được lưu qua việc rời sạp hoặc tải lại**; ghi rõ điểm chỉ trong lượt này. Không thay ví hay các lượt hội chợ đã trả vé.
+- Tải save nền không đóng màn puzzle đang chơi. Khi tab ẩn, đồng hồ và diễn biến puzzle dừng cập nhật.
+
+### 18.2. Tình trạng kiểm chứng
+
+Đã kiểm tra TypeScript và test hành vi: cờ vua có 20 nước mở đầu/400 thế sau hai nửa lượt, chiếu hết, nhập thành và bắt tốt qua đường; cờ tướng có 44 nước mở đầu và chống lộ mặt tướng; xếp hình có lời giải; ghép bộ, tìm đường Lines, xoá hàng gạch; bảo toàn tổng hạt/điểm/nợ ô ăn quan.
+
+Chưa chơi thử trực quan các màn mới, chưa benchmark laptop/điện thoại, chưa xác nhận đầy đủ mọi thế hoà cờ vua hoặc luật giải đấu cờ tướng/ô ăn quan. Các kích thước bàn, mục tiêu điểm/thời gian và độ khó máy ở bảng trên là thông số triển khai ban đầu cần playtest, không phải cân bằng cuối cùng. Không tuyên bố đã có multiplayer hoặc xác thực server cho các trò puzzle.

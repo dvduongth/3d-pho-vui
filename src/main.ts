@@ -19,6 +19,7 @@ import {createCarnivalUI} from './carnival-ui';
 import {canUseAdminTools,supplyCarnival} from './admin-tools';
 import './access.css';
 import {createCarnivalStage} from './carnival-stage';
+import {createPuzzleUI} from './puzzle-ui';
 let carnival=newCarnival(),assisted=false;
 let adminIdentity:{username:string}|null=null;
 
@@ -74,10 +75,11 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  <div class="touch stick hidden" id="stick"><div class="knob" id="knob"></div></div><div class="touch touchbuttons hidden" id="touchbuttons"><button id="touchE">✋<br>Gặp</button><button id="touchJump">↑<br>Nhảy</button></div>
  <div id="fish"></div><div class="modal" id="modal"></div>`;
 
+ const puzzles=createPuzzleUI(modal,sound);
  const fair=createFairGames(scene,camera,ui,sound,()=>{state.modal='';path=[];pendingPlace=-1;});
  function gamePicker(){
   if(state.fishing?.phase==='casting')return toast('Giật cá hoặc đóng lượt câu trước nhé.');
-  modal('Chọn trò chơi','<p>Bấm Chơi ngay để mở trò. Không cần đi tìm NPC.</p><div class="game-picker">'+[{name:'Câu cá · Ông Tư',place:0,note:'Canh kim, giật cá'},{name:'Caro · Chị Hoa',place:2,note:'Có chế độ 0 xu'},...fairNames.map((name,i)=>({name,place:i+6,note:i<3?'Miễn phí · Chơi ngay':'1 vé / lượt · Có quầy mua vé'})),{name:'Vườn · Cô Lan',place:3,note:'Mở theo thời gian chơi'},{name:'Chuồng · Chú Sáu',place:-1,note:'Mở theo thời gian chơi'}].map(g=>'<button data-play="'+g.place+'">'+g.name+'<small>'+g.note+'</small></button>').join('')+'</div>');
+  modal('Chọn trò chơi','<p>Bấm Chơi ngay để mở trò. Không cần đi tìm NPC.</p><div class="game-picker">'+[{name:'Câu cá · Ông Tư',place:0,note:'Canh kim, giật cá'},{name:'Caro · Chị Hoa',place:2,note:'Có chế độ 0 xu'},...fairNames.map((name,i)=>({name,place:i+6,note:i<3||i>=9?'Miễn phí · Chơi ngay':'1 vé / lượt · Có quầy mua vé'})),{name:'Vườn · Cô Lan',place:3,note:'Mở theo thời gian chơi'},{name:'Chuồng · Chú Sáu',place:-1,note:'Mở theo thời gian chơi'}].map(g=>'<button data-play="'+g.place+'">'+g.name+'<small>'+g.note+'</small></button>').join('')+'</div>');
   document.querySelectorAll<HTMLButtonElement>('[data-play]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.play);closeModal();path=[];pendingPlace=-1;if(i===-1)animal();else interactPlace(i);});
  }
  $('fairmap').onclick=gamePicker;
@@ -95,14 +97,14 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  const saves=createProgressStore(
   ():Progress=>({version:1,coins:state.coins,owned:[...state.owned],worn:state.worn,fishCount:state.fishCount,quest:state.quest,played:state.played,casts:state.casts,refillAt,latestCatch:latestSessionCatch,garden:state.garden,gardenWait:Math.max(0,state.gardenReady-clock),animal:state.animal,animalWait:Math.max(0,state.animalReady-clock),claimedCasts:[...claimedCasts].slice(-128),muted,assisted,carnival:structuredClone(carnival)}),
   saved=>{
-   const keepFreeGame=fair.active();
+   const keepFreeGame=fair.active(),keepPuzzle=puzzles.active();
    assisted=saved.assisted??false;
    carnival=saved.carnival?structuredClone(saved.carnival):newCarnival();
    state.coins=saved.coins;state.owned=new Set(saved.owned);state.worn=saved.worn;state.fishCount=saved.fishCount;state.quest=saved.quest;state.played=saved.played;state.casts=Math.min(saved.casts,settings.get('maxCasts'));refillAt=saved.refillAt;
    latestSessionCatch=saved.latestCatch;state.garden=saved.garden;state.gardenReady=clock+saved.gardenWait;state.animal=saved.animal;state.animalReady=clock+saved.animalWait;muted=saved.muted;
    claimedCasts.clear();saved.claimedCasts.forEach(id=>claimedCasts.add(id));
    (player.body.material as T.MeshStandardMaterial).color.set(outfits[state.worn].color);
-   state.fishing=null;state.modal=keepFreeGame?'Hội chợ':'';$('modal').innerHTML='';fishPanel();updateQuest();restored=true;
+   state.fishing=null;if(!keepPuzzle){state.modal=keepFreeGame?'Hội chợ':'';$('modal').innerHTML='';}fishPanel();updateQuest();restored=true;
    $('mute').textContent=muted?'♪̸':'♫';lastSaveSignature='';lastProgressSave=clock;
   },
   text=>{$('savestatus').textContent=text;},
@@ -211,6 +213,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
   if(state.played>=settings.get('unlockSeconds')*2)$('animal').onclick=animal;
  }
  function interactPlace(i:number){
+  if(i>=15){state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;puzzles.open(i-15);return;}
   if(i>=9){if(!saves.canChange()){modal('Đang tải tiến độ','<p>Trò dùng vé cần tải ví trước. Bạn có thể chơi ngay 2048, Chim bay hoặc Ném vòng miễn phí trong danh sách trò.</p><button id="backgames">Chọn trò miễn phí</button>');$('backgames').onclick=gamePicker;return;}state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;carnivalUI.open(i-9);return;}
   if(i>=6){state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;state.modal='Hội chợ';fair.open(i-6);return;}
   if(i===5){boardPanel();return;}
@@ -245,13 +248,14 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  const resize=()=>{const w=host.clientWidth,h=host.clientHeight,s=Math.min(Math.max(w,h)/1280,Math.min(w,h)/720);renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();ui.style.width=w/s+'px';ui.style.height=h/s+'px';ui.style.transform='scale('+s+')';};new ResizeObserver(resize).observe(host);resize();
  void me().then(user=>{if(!user){saves.unavailable();return;}adminIdentity=user;adminButton.hidden=!canUseAdminTools(adminIdentity);state.name=user.username;$('username').textContent=user.username;nameLabel.material.map?.dispose();const replacement=label(user.username+' · Cư dân mới');nameLabel.material.map=replacement.material.map;nameLabel.material.needsUpdate=true;if(import.meta.env.DEV)state.dev=user.source==='dev';void saves.load(user.email).then(()=>{if(state.started)toast('Ông Tư: Chào '+state.name+'!');});void presence.connect();});
  const timer=new T.Timer(),camTarget=new T.Vector3(),look=new T.Vector3(),move=new T.Vector3(),velocity=new T.Vector3();let fpsTime=0,fpsFrames=0,lastMusic=0,lastUnlock=0;
- window.__GAME_STATE__=()=>({scene:state.fishing?'fishing':state.modal|| (state.started?'town':'welcome'),running:state.started,entities:1+world.npcs.length+fairNpcs.length+world.crowd.length+presence.count(),player:{x:player.root.position.x,y:player.root.position.y,z:player.root.position.z},score:state.coins,custom:{...fair.state(),adminTools:canUseAdminTools(adminIdentity),assisted,luck:carnival.luck,carnivalTickets:carnival.tickets,components:carnival.components.length,carnivalWorkers:carnival.workers,fishCount:state.fishCount,casts:state.casts,phase:state.fishing?.phase||'none',practice:state.fishing?.phase==='casting'?state.fishing.practice:state.practice,played:state.played,quest:state.quest,drawCalls:renderer.info.render.calls,sessionOnly:!saves.cloudReady(),saveStatus:$('savestatus').textContent||'',roomStatus:presence.status(),remotePlayers:presence.count(),catchSource:'simulation'}});
- if(import.meta.env.DEV)window.__GAME_TEST__={openFishing:()=>{state.started=true;openFish();},win:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock-settings.get('needleSeconds')*.5,practice:false};fishAction();},lose:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock,practice:false};fishAction();},unlock:()=>{state.played=settings.get('unlockSeconds')*2+1;},caro:()=>startCaro(),fair:(index:number)=>{if(state.started&&index>=0&&index<9)interactPlace(6+index);}};
+ window.__GAME_STATE__=()=>({scene:state.fishing?'fishing':state.modal|| (state.started?'town':'welcome'),running:state.started,entities:1+world.npcs.length+fairNpcs.length+world.crowd.length+presence.count(),player:{x:player.root.position.x,y:player.root.position.y,z:player.root.position.z},score:state.coins,custom:{...fair.state(),...puzzles.state(),adminTools:canUseAdminTools(adminIdentity),assisted,luck:carnival.luck,carnivalTickets:carnival.tickets,components:carnival.components.length,carnivalWorkers:carnival.workers,fishCount:state.fishCount,casts:state.casts,phase:state.fishing?.phase||'none',practice:state.fishing?.phase==='casting'?state.fishing.practice:state.practice,played:state.played,quest:state.quest,drawCalls:renderer.info.render.calls,sessionOnly:!saves.cloudReady(),saveStatus:$('savestatus').textContent||'',roomStatus:presence.status(),remotePlayers:presence.count(),catchSource:'simulation'}});
+ if(import.meta.env.DEV)window.__GAME_TEST__={openFishing:()=>{state.started=true;openFish();},win:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock-settings.get('needleSeconds')*.5,practice:false};fishAction();},lose:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock,practice:false};fishAction();},unlock:()=>{state.played=settings.get('unlockSeconds')*2+1;},caro:()=>startCaro(),fair:(index:number)=>{if(state.started&&index>=0&&index<17)interactPlace(6+index);}};
  $('loadbar').style.width='100%';$('loadpercent').textContent='100%';setTimeout(()=>{$('loading').classList.add('out');setTimeout(()=>$('loading').remove(),700);},350);
  renderer.setAnimationLoop(time=>{
   timer.update(time);const dt=Math.min(timer.getDelta(),.1);clock+=dt;const active=state.started&&!document.hidden;if(active)state.played+=dt;
   const unlock=Math.floor(state.played/settings.get('unlockSeconds'));if(unlock>lastUnlock){lastUnlock=unlock;if(unlock===1)toast('Ngày mới! Vườn, xe và ảnh đã mở trong phiên.');if(unlock===2)toast('Cô Lan: Ghé thăm đàn gà cùng cô nhé.');}
   if(Date.now()-refillAt>=settings.get('refillMinutes')*60000){const count=Math.floor((Date.now()-refillAt)/(settings.get('refillMinutes')*60000));state.casts=Math.min(settings.get('maxCasts'),state.casts+count);refillAt+=count*settings.get('refillMinutes')*60000;}
+  puzzles.tick(dt);
   carnivalUI.tick(dt);
   if(!fair.active()&&input.pressed('Escape')){if(state.modal)closeModal();else if(state.fishing){state.fishing=null;fishPanel();}}
   const space=!fair.active()&&input.pressed('Space'),inter=!fair.active()&&input.pressed('KeyE');
