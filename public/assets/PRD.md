@@ -1,6 +1,7 @@
-# Phố Vui (Happy Street) — GDD v1
+# Phố Vui (Happy Street) — GDD v1.1
 
 > **Author:** daniel duong · **Ngày:** 14/10/2026  
+> **Cập nhật v1.1:** bổ sung §17 về minigame hội chợ, căn lực–Luck, lưu lượt riêng theo quầy và công cụ thử nghiệm. Giữ cấu trúc §1–16; §17 ghi rõ phạm vi thay thế và tình trạng triển khai.
 > **Tài liệu:** Game PRD, giữ cấu trúc GDD v1 và cập nhật các quyết định đã chốt trong phỏng vấn.  
 > **Trạng thái:** ĐÃ CHỐT về hướng thiết kế; các giá trị `Proposed` cần kiểm chứng bằng playtest. Không mặc định các hệ thống đã được triển khai.  
 > **Nguồn sự thật duy nhất về cơ chế chơi:** tài liệu này. Các tài liệu lịch sử không được ghi đè những quyết định bên dưới.  
@@ -386,3 +387,110 @@ Các giá trị dưới là đề xuất để thử nghiệm. Bộ thông số 
 - Vùng chuẩn nhất không làm mọi cú giật bên trong có cùng cân nặng; tâm vẫn là mục tiêu tốt nhất.
 - Nhảy theo gravity arc: `g = 2 × PLAYER_JUMP_HEIGHT_M / PLAYER_JUMP_APEX_S²`, `v0 = 2 × PLAYER_JUMP_HEIGHT_M / PLAYER_JUMP_APEX_S`. Không dùng chuyển động tween cố định thay cho quỹ đạo vật lý.
 - Các thông số này không trao lợi thế theo đồ mặc, danh hiệu hay độ tuổi tài khoản.
+
+## 17. Minigame hội chợ — cập nhật v1.1
+
+### 17.1. Phạm vi và nguồn sự thật
+
+- **Đã chốt:** bổ sung NPC với 2048, Chim bay (Flappy), ném vòng và sáu quầy hội chợ. Câu cá tiếp tục là vòng chơi lõi; hội chợ không thay bốn cơ chế nhập môn.
+- **Đã chốt:** sáu quầy hội chợ có màn chơi trực quan như các minigame hiện có, dùng căn lực để thể hiện kỹ năng và có sai lệch may mắn.
+- Luật căn lực bên dưới thay cách dùng d20 thuần túy cho hành động chơi tại sáu quầy. Không áp dụng ngẫu nhiên vào cân nặng câu cá; quy tắc câu cá ở §2, §5, §6 vẫn giữ nguyên.
+- **Hiện có trong mã:** chín trò hội chợ là mô phỏng cá nhân phía client. Chưa có đấu đối kháng online, chấm điểm server, giải đấu hay bảng xếp hạng cho các trò này. Không tự cộng kết quả vào bảng câu cá, huy hiệu server hoặc phần thưởng vòng phố.
+- “Đã có trong mã” không đồng nghĩa đã được chơi thử trực quan hoặc kiểm chứng hiệu năng trên thiết bị mục tiêu.
+
+### 17.2. Danh mục NPC và trò chơi
+
+| NPC | Trò | Vào chơi và mục tiêu | Tình trạng |
+|---|---|---|---|
+| Cô Mai | 2048 | Miễn phí; ghép ô bằng nhau tới 2048. Phím mũi tên/WASD, vuốt hoặc nút hướng. Hết nước đi thì kết thúc lượt | Đã có trong mã |
+| Anh Bình | Chim bay | Miễn phí; Space/nút Vỗ cánh để qua cổng, mỗi cổng 1 điểm; va chạm kết thúc lượt | Đã có trong mã |
+| Chú Bảy | Ném vòng tính giờ | Miễn phí; canh vòng ngắm rồi ném, 5 vòng, trúng ít nhất 3 để thắng | Đã có trong mã; tách biệt Ném vòng chai |
+| Chú Sơn | Thử sức mạnh | Một vé cho một lần vung búa | Đã có trong mã |
+| Cô Liên | Ném vòng chai | Một vé cho ba vòng; chọn chai lớn hoặc chai nhỏ | Đã có trong mã |
+| Anh Hải | Bắn bia | Một vé cho chuỗi ba bia; phải trúng liên tiếp | Đã có trong mã |
+| Chị Ngân | Đua ngựa súng nước | Một vé cho một cuộc đua; có thể mời thêm NPC | Đã có trong mã; đối thủ mô phỏng |
+| Chú Tám | Ném chai sữa | Một vé cho ba bóng, mỗi bóng vào một tháp sáu chai | Đã có trong mã |
+| Cô Vy | Hồ vịt | Một vé cho một lần chọn vịt có căn lực | Đã có trong mã |
+
+Caro chị Hoa tiếp tục dùng luật ở §5 và §12, có ván không cược. Điểm 2048, Chim bay và ném vòng miễn phí chỉ thuộc lượt chơi; chưa lưu kỷ lục hoặc thưởng xu từ ba trò này.
+
+### 17.3. Luồng vào và giao diện
+
+- Thanh hành động có **Trò chơi**: chọn trò để mở ngay, không bắt buộc tìm đường tới NPC. Vẫn có thể gặp NPC trong phố để mở trò tương ứng.
+- Sáu trò dùng sân chơi 3D riêng với cùng renderer/camera Three.js: búa–chuông, chai và vòng, bia bắn, ngựa đua, tháp chai, hồ vịt. Không dùng ảnh 2D thay mô hình.
+- Đầu màn hình: tên trò, vé, Luck và ví hội chợ. Bên trái: trạng thái lượt, quà, luật thu gọn. Bên phải: mua lượt, chọn Luck và hành động. Giữa: sân chơi và thanh căn lực. Phía dưới: kết quả và phép tính.
+- “Vé, quà & linh kiện” mở ngăn phụ. Có “Về phố”, kết quả và chơi lại. Không reset toàn bộ phố khi thua một trò.
+- Khi chơi, input không đồng thời di chuyển/nhảy nhân vật. Thiết kế cho desktop và điện thoại ngang; các nút chính đủ lớn cho cảm ứng.
+- Ba trò miễn phí có thể mở khi đang tải tiến độ. Trò dùng vé cần tải ví trước; phải giải thích trạng thái chờ, không im lặng từ chối. Dữ liệu cloud tới không tự đóng một lượt miễn phí đang chơi.
+
+### 17.4. Căn lực, sai lệch và Luck
+
+**Đã chốt về hướng:** kỹ năng quyết định kết quả nền; may mắn gây sai lệch; người chơi quyết định dùng/vay Luck trước hành động.
+
+**Tuning hiện dùng, còn cần playtest:**
+
+1. Giữ nút hành động rồi thả; bàn phím bấm Space lần đầu để bắt đầu và lần hai để thực hiện. Kim chạy qua lại, tâm thanh là lực lý tưởng. Mỗi lần ném/bắn có lượt căn riêng.
+2. Gọi vị trí kim là `p` trong `[0,1]`: `accuracy = max(0, 1 - 2 × abs(p - 0.5))`; điểm nền `round(20 × accuracy)`.
+3. Gieo một d20 thật, gọi mặt gieo là `n`; sai lệch `round((n - 10.5) / 3)`, trong khoảng −3…+3. Tổng hành động = điểm nền + sai lệch + các d4 Luck − d4 trả nợ nếu có.
+4. Nhịp kim hiện dùng chung setting `needleSeconds` với câu cá, mặc định 1,6 giây mỗi chiều. Cần đánh giá việc tách setting sau playtest.
+5. Vùng màu ở tâm chỉ là hướng dẫn, không gom các cú căn trong vùng thành cùng một điểm.
+6. Chọn số d4 trước khi bắt đầu căn; khoá lựa chọn khi đang căn. Chuyển tab, mất focus hoặc mở ngăn phụ hủy thao tác chưa thực hiện, không gieo, không trừ Luck và không tiêu thêm lần ném. Vé đã trả để mở lượt vẫn giữ trạng thái đã trả.
+7. Kết quả ghi riêng độ chuẩn, điểm nền, mặt d20, sai lệch, d4 cộng/trừ và Luck trước/sau. Hoạt cảnh minh hoạ kết quả, không tự thay đổi kết quả.
+
+**Luck:**
+
+- Bắt đầu với **1 Luck**. Dùng `k` d4 làm Luck giảm `k`; được phép xuống âm để vay tương lai.
+- Khi Luck trước lần gieo âm và không dùng thêm d4, chịu −1d4 và hồi 1 Luck.
+- Mỗi **natural 1 trên d20** hồi thêm 1 Luck; có thể cộng với hồi Luck do trả nợ trong cùng lần gieo. Không hiểu “natural” là tổng sau cộng/trừ.
+- Nợ Luck được lưu qua việc rời quầy, đổi trò, tải lại và hoàn tất bộ linh kiện.
+- Giao diện hiện giới hạn nhập 10.000 d4/lần để bảo vệ dung lượng và xử lý; đây là giới hạn kỹ thuật, không phải số d4 miễn phí.
+- Charisma mời NPC, Wisdom nhận ra mẹo và Intelligence giải mẹo vẫn dùng d20 + d4 Luck − phạt nợ, không có căn lực.
+
+### 17.5. Luật sáu quầy với căn lực
+
+| Quầy | Thành công và phần thưởng |
+|---|---|
+| Thử sức mạnh | Tổng ≥19: quà lớn; mọi kết quả khác: quà nhỏ. Một lần/vé |
+| Ném vòng chai | Ba vòng/vé. Chai lớn: tổng ≥19 nhận quà lớn. Chai nhỏ: mặt d20 chia hết cho 3 **và điểm căn lực ≥12** nhận quà nhỏ |
+| Bắn bia | Ba bia cần tổng lần lượt ≥12, ≥15, ≥17. Trượt một bia kết thúc lượt; trúng cả ba nhận quà lớn |
+| Đua ngựa súng nước | Tổng ≥10 + số người khác để thắng. Ít hơn sáu người: quà nhỏ; đủ sáu người: quà lớn. Mời tối đa năm NPC qua Charisma DC 12, mỗi NPC có vé riêng; người chơi trả vé của mình |
+| Ném chai sữa | Trúng tổng ≥11 hạ 1d4+1 chai. Ngoại lệ natural 20 chỉ hạ 1 chai, kể cả đã giải mẹo. Hạ sáu chai trong một lần nhận quà lớn. Cuối ba bóng, tổng ≥10 nhận quà vừa; nếu chưa tới 10 nhưng ≥3 nhận quà nhỏ |
+| Hồ vịt | Tổng **đúng 20** nhận quà lớn. Nếu không, mặt d20 chẵn **và điểm căn lực ≥12** nhận quà nhỏ. Căn quá lực hoặc cộng quá nhiều Luck có thể vượt 20 |
+
+- Khi có căn lực, các ngưỡng trúng dùng tổng đã tính; natural 20 không tự bảo đảm trúng bia/chai lớn. Ngoại lệ natural 20 của chai sữa vẫn áp dụng như bảng trên.
+- Điều kiện căn ≥12 cho quà nhỏ tại vòng chai/hồ vịt là tuning mới để kỹ năng có tác dụng, cần kiểm chứng nhịp thưởng. Đây là thay đổi so với mô tả d20 thuần túy ban đầu.
+- Chai sữa: sau hai bóng, bắt buộc Wisdom DC 12. Thành công phát hiện gian lận; người chơi có thể ném tiếp hoặc thử Intelligence DC 15 khi Luck không âm. Giải được mẹo cho lần ném trúng kế tiếp hạ sáu chai, trừ natural 20. Intelligence có thể thử lại sau một lần ném tiếp theo; kiến thức về mẹo được lưu.
+- Quà lớn và quà theo tổng số chai được tính riêng trong triển khai hiện tại. Chưa coi đây là kết luận cân bằng kinh tế.
+- NPC tuyển cho đua ngựa là mô phỏng, không phải người trong phòng Multiplayer. Chưa có cơ chế chuyển vé giữa người thật.
+
+### 17.6. Ví hội chợ, quà và mục tiêu
+
+- **Đã được người dùng chốt:** khởi đầu 12 bạc, 0 vàng, 1 Luck; Athletics, đánh xa, Concentration, Charisma, Wisdom và Intelligence đều +0. Charisma mời NPC DC 12.
+- Vé giá **1 bạc/1 vé** hoặc **1 vàng/12 vé**. Ví bạc/vàng độc lập với xu Phố Vui; chưa có quy đổi hay nguồn thu bạc/vàng bổ sung tự động.
+- **3 quà nhỏ → 1 quà vừa; 3 quà vừa → 1 quà lớn** tại quầy được chọn. Quà lớn có thú bông và linh kiện trên nơ; mỗi quầy đóng góp một linh kiện khác nhau.
+- Mục tiêu là đủ **6 linh kiện**, có danh sách theo dõi từng quầy. Hoàn thành vẫn được chơi tiếp. Không tự thưởng thêm xu, danh hiệu hay lợi thế khi hoàn thành bộ.
+- Có thể thắng nhiều quà lớn, nhưng linh kiện cùng quầy chỉ ghi nhận một lần.
+- Lấy trộm thú bông có linh kiện chưa sở hữu thu hút một nhân viên. Gây gổ thu hút thêm 1d4 nhân viên mỗi lần. **Hiện mới ghi nhận số nhân viên và phản hồi bằng chữ; chưa có hệ giao chiến, truy đuổi hoặc luật kết thúc đối đầu.**
+
+### 17.7. Lưu tiến độ và sửa lỗi đổi trò
+
+- Lưu ví hội chợ, vé, Luck kể cả âm, quà, linh kiện, nhân viên, NPC đã mời, kiến thức mẹo chai sữa và các lượt đã trả vé cùng save tài khoản.
+- Mỗi quầy giữ tối đa một lượt đang dở. Khi đổi trò, cất lượt hiện tại vào `pausedAttempts`; khôi phục lượt của **đúng quầy được chọn**, nếu có. Không trừ thêm vé khi tiếp tục.
+- Lỗi cũ: màn render dùng `attempt.stall` ghi đè trò vừa chọn, khiến mọi trò thành quầy ném vòng còn dở. Đã sửa bằng `selectStall`; không dùng lượt cũ để thay lựa chọn mới.
+- Đóng panel không tự bỏ lượt. Bỏ lượt là thao tác có xác nhận, không hoàn vé, giữ quà đã nhận và nợ Luck.
+- Save cũ thiếu trường mới được đọc tương thích; kiểm tra các lượt tạm dừng không trùng quầy. Không ghi đè bản cloud bằng dữ liệu fallback khi cloud đã có save.
+- Database và Multiplayer đã được bật trong môi trường dự án; mã client đã gọi dịch vụ lưu và relay của nền tảng. Điều này **không chứng nhận** chấm thi server, ZPS resolver riêng, một tài khoản/một phiên hoặc spec collider của GDD gốc đã hoàn tất. Room `world` nền tảng tối đa 50 người; mục tiêu 30 người của GDD chưa được cưỡng chế.
+
+### 17.8. Công cụ thử nghiệm `duongdv`
+
+- Hiện nút **⚒ Thử nghiệm** khi danh tính do `api/me` trả về có username `duongdv`. Không dùng tên tự nhập trong game để cấp quyền.
+- Nạp đến tối thiểu: 1.000 xu Phố Vui; 100 vé, 100 bạc, 10 vàng, 20 Luck, 27 quà nhỏ, 9 quà vừa. Bấm lại chỉ nạp đủ mức này, không cộng dồn vô hạn. Không tự trao linh kiện.
+- Có nút mở các mốc hoạt động, đủ áo, nạp lượt câu và kết thúc thời gian chờ vườn/chuồng; có lối mở danh sách trò.
+- Mọi thay đổi gắn cờ `assisted` trong save; kết quả vẫn là mô phỏng. Không gửi thành tích này vào bảng thi đấu xác thực.
+- **Đây là tiện ích client cho thử nghiệm, không phải phân quyền admin server hay cơ chế chống gian.** Chưa có API phân quyền admin trong phạm vi triển khai.
+
+### 17.9. Kiểm chứng và phần còn thiếu
+
+Đã chạy kiểm tra TypeScript và các test logic liên quan: 2048/va chạm/ném vòng, luật sáu quầy, căn lực–Luck, công cụ thử nghiệm, lưu tiến độ, đổi qua sáu quầy và khôi phục lượt không trừ lại vé.
+
+Chưa xác nhận bằng playtest trực quan cho các màn hội chợ mới; chưa đo FPS trên thiết bị mục tiêu, chưa kiểm chứng đầy đủ cảm ứng landscape, cân bằng vé/Luck/quà hoặc E2E nhiều người. Chưa triển khai thi đấu minigame online, phần thưởng được server xác thực, giao chiến với nhân viên hay công dụng tiếp theo của bộ sáu linh kiện.
