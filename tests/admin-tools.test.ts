@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {canUseAdminTools,supplyCarnival} from '../src/admin-tools.ts';
+import {newCarnival,parseCarnival} from '../src/carnival.ts';
+assert.equal(canUseAdminTools(null),false);
+assert.equal(canUseAdminTools({username:'Bạn'}),false);
+assert.equal(canUseAdminTools({username:'duongdv_fake'}),false);
+assert.equal(canUseAdminTools({username:'duongdv'}),true);
+const c=newCarnival();c.luck=-9;c.components=[2];c.tickets=400;
+supplyCarnival(c);assert.equal(c.tickets,400);assert.equal(c.luck,20);assert.equal(c.silver,100);assert.deepEqual(c.components,[2]);
+const once=structuredClone(c);supplyCarnival(c);assert.deepEqual(c,once,'replenishment does not accumulate repeatedly');
+assert.deepEqual(parseCarnival(JSON.parse(JSON.stringify(c))),c,'supplied inventory survives save roundtrip');
+const old:Record<string,unknown>={...c};delete old.milkInsight;delete old.milkIntTried;
+assert.equal(parseCarnival(old)?.milkInsight,false);assert.equal(parseCarnival(old)?.tickets,400);
+console.log('Admin tools passed: identity gate, supplies, no automatic components, idempotent refill, old save migration.');

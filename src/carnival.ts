@@ -4,7 +4,10 @@ export type Attempt={stall:number;step:number;bottles:number;wisdom:boolean;insi
 export type Carnival={luck:number;silver:number;gold:number;tickets:number;small:number;medium:number;big:number;components:number[];workers:number;recruits:number;milkSolved:boolean;milkInsight:boolean;milkIntTried:boolean;attempt:Attempt|null;log:string;};
 export const newCarnival=():Carnival=>({luck:1,silver:12,gold:0,tickets:0,small:0,medium:0,big:0,components:[],workers:0,recruits:0,milkSolved:false,milkInsight:false,milkIntTried:false,attempt:null,log:'Chào mừng tới hội chợ! Bạn bắt đầu với 12 bạc, 0 vàng và 1 Luck. Mua vé, chơi ở sáu quầy và thu thập đủ 6 linh kiện trên nơ thú bông.'});
 export function parseCarnival(value:unknown):Carnival|null{
- if(!value||typeof value!=='object')return null;const c=value as Carnival;
+ if(!value||typeof value!=='object')return null;const c=structuredClone(value) as Carnival;
+ // Earlier saves predate persistent knowledge of the milk-bottle trick.
+ if(c.milkInsight===undefined)c.milkInsight=c.attempt?.insight??false;
+ if(c.milkIntTried===undefined)c.milkIntTried=c.attempt?.intTried??false;
  for(const k of ['luck','silver','gold','tickets','small','medium','big','workers','recruits'] as const)if(!Number.isSafeInteger(c[k])||(k!=='luck'&&c[k]<0))return null;
  if(c.recruits>5||typeof c.milkSolved!=='boolean'||typeof c.milkInsight!=='boolean'||typeof c.milkIntTried!=='boolean'||typeof c.log!=='string'||c.log.length>2000||!Array.isArray(c.components)||c.components.length>6||new Set(c.components).size!==c.components.length||!c.components.every(i=>Number.isInteger(i)&&i>=0&&i<6))return null;
  const a=c.attempt;if(a!==null){if(!a||typeof a!=='object')return null;for(const [key,max] of [['stall',5],['step',3],['bottles',18],['others',5]] as const)if(!Number.isInteger(a[key])||a[key]<0||a[key]>max)return null;for(const key of ['wisdom','insight','intTried'] as const)if(typeof a[key]!=='boolean')return null;}

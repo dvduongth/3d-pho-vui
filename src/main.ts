@@ -16,7 +16,10 @@ import './game.css';
 import './network-ui.css';
 import {newCarnival} from './carnival';
 import {createCarnivalUI} from './carnival-ui';
-let carnival=newCarnival();
+import {canUseAdminTools,supplyCarnival} from './admin-tools';
+import './access.css';
+let carnival=newCarnival(),assisted=false;
+let adminIdentity:{username:string}|null=null;
 
 type Fishing={phase:'ready'}|{phase:'casting';started:number;practice:boolean;id:string}|{phase:'result';catch:Catch|null;message:string;retryAt:number;practice:boolean};
 const state={started:false,name:'Bạn',coins:20,casts:30,fishCount:0,quest:0,played:0,practice:false,worn:0,owned:new Set([0]),fishing:null as Fishing|null,modal:'',emoteUntil:0,rideUntil:0,garden:0,gardenReady:0,animal:0,animalReady:0,dev:false};
@@ -64,25 +67,41 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  <div class="objective panel hidden" id="objective"><b>↗ Ghé thăm ông Tư</b><small>Theo mũi tên bên hồ · E để trò chuyện</small></div>
  <div class="toast" id="toast" role="status" aria-live="polite"></div>
  <div class="welcome" id="welcome"><span class="eyebrow">CHÀO MỪNG VỀ PHỐ</span><h1>Phố Vui</h1><p>Một chiếc cần câu.<br>Một chiều bình yên.<br>Và những người bạn mới.</p><div class="sub">Chọn màu áo của bạn</div><div class="swatches" id="swatches"></div><button class="primary" id="enter">Vào phố →</button><p class="sub">Câu cá mô phỏng · NPC trong phố<br>WASD để đi · Space để nhảy</p></div>
- <div class="actions panel hidden" id="actions"><button id="interact"><span>♧</span>Gặp gỡ</button><button id="wardrobe"><span>♧</span>Tủ đồ</button><button id="wave"><span>✋</span>Vẫy chào</button><button id="photo"><span>▣</span>Chụp ảnh</button><button id="fairmap"><span>♜</span>Hội chợ</button></div>
+ <div class="actions panel hidden" id="actions"><button id="interact"><span>♧</span>Gặp gỡ</button><button id="wardrobe"><span>♧</span>Tủ đồ</button><button id="wave"><span>✋</span>Vẫy chào</button><button id="photo"><span>▣</span>Chụp ảnh</button><button id="fairmap"><span>♜</span>Trò chơi</button></div>
  <div class="hint hidden" id="hint">WASD / chạm đường để đi · E tương tác · Space nhảy · Kéo chuột giữa để xoay</div>
  <div class="notice connectionbar"><button id="savestatus">Đang tải tiến độ…</button><button id="roomstatus">Hàng xóm · Chưa kết nối</button></div>
  <div class="touch stick hidden" id="stick"><div class="knob" id="knob"></div></div><div class="touch touchbuttons hidden" id="touchbuttons"><button id="touchE">✋<br>Gặp</button><button id="touchJump">↑<br>Nhảy</button></div>
  <div id="fish"></div><div class="modal" id="modal"></div>`;
 
  const fair=createFairGames(scene,camera,ui,sound,()=>{state.modal='';path=[];pendingPlace=-1;});
- $('fairmap').onclick=()=>{if(state.fishing?.phase==='casting')return toast('Hoàn tất lượt câu trước nhé.');modal('Hội chợ bên hồ','<p>Gặp các chủ quầy quanh hồ. Sáu quầy xúc xắc có vé, Luck và linh kiện trên thú bông.</p>'+fairNames.map((name,i)=>'<div class="row"><b>'+name+'</b><button data-fair="'+i+'">Dẫn đường →</button></div>').join('')+'<p class="sub">2048, Chim bay, Ném vòng cũ miễn phí. Các quầy xúc xắc dùng vé riêng, không dùng xu Phố Vui.</p>');document.querySelectorAll<HTMLButtonElement>('[data-fair]').forEach(b=>b.onclick=()=>{const i=6+Number(b.dataset.fair);closeModal();goTo(places[i].x,places[i].z);pendingPlace=i;toast('Đang tới '+places[i].name);});};
+ function gamePicker(){
+  if(state.fishing?.phase==='casting')return toast('Giật cá hoặc đóng lượt câu trước nhé.');
+  modal('Chọn trò chơi','<p>Bấm Chơi ngay để mở trò. Không cần đi tìm NPC.</p><div class="game-picker">'+[{name:'Câu cá · Ông Tư',place:0,note:'Canh kim, giật cá'},{name:'Caro · Chị Hoa',place:2,note:'Có chế độ 0 xu'},...fairNames.map((name,i)=>({name,place:i+6,note:i<3?'Miễn phí · Chơi ngay':'1 vé / lượt · Có quầy mua vé'})),{name:'Vườn · Cô Lan',place:3,note:'Mở theo thời gian chơi'},{name:'Chuồng · Chú Sáu',place:-1,note:'Mở theo thời gian chơi'}].map(g=>'<button data-play="'+g.place+'">'+g.name+'<small>'+g.note+'</small></button>').join('')+'</div>');
+  document.querySelectorAll<HTMLButtonElement>('[data-play]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.play);closeModal();path=[];pendingPlace=-1;if(i===-1)animal();else interactPlace(i);});
+ }
+ $('fairmap').onclick=gamePicker;
+ function adminPanel(){
+  if(!canUseAdminTools(adminIdentity))return;
+  modal('Công cụ thử nghiệm · duongdv','<div class="admin-tools"><p>Chỉ tác động bản mô phỏng của tài khoản này. Đây không phải quyền quản trị server.</p><p id="admin-feedback" role="status"></p><button id="admin-supply" class="primary">Cấp vé, tiền, Luck và quà đổi</button><button id="admin-unlock">Mở vườn, chuồng, ảnh, xe và đủ áo</button><button id="admin-casts">Nạp đầy lượt câu, kết thúc thời gian chờ</button><button id="admin-play">Mở danh sách trò chơi</button></div>');
+  const apply=(fn:()=>void)=>{if(!canUseAdminTools(adminIdentity))return;if(!saves.canChange()){$('admin-feedback').textContent='Chưa tải xong tiến độ. Bấm trạng thái lưu để thử lại; chưa cấp vật phẩm.';return;}fn();assisted=true;saves.changed();void saves.flush();$('admin-feedback').textContent='Đã áp dụng cho bản mô phỏng. '+$('savestatus').textContent;sound(800);};
+  $('admin-supply').onclick=()=>apply(()=>{supplyCarnival(carnival);state.coins=Math.max(state.coins,1000);});
+  $('admin-unlock').onclick=()=>apply(()=>{state.played=Math.max(state.played,settings.get('unlockSeconds')*2+1);state.owned=new Set([0,1,2,3]);});
+  $('admin-casts').onclick=()=>apply(()=>{state.casts=settings.get('maxCasts');refillAt=Date.now();state.gardenReady=clock;state.animalReady=clock;});
+  $('admin-play').onclick=gamePicker;
+ }
+ const adminButton=document.createElement('button');adminButton.className='admin-entry';adminButton.textContent='⚒ Thử nghiệm';adminButton.hidden=true;adminButton.onclick=adminPanel;ui.append(adminButton);
  let lastSaveSignature='',lastProgressSave=0,restored=false;
  const saves=createProgressStore(
-  ():Progress=>({version:1,coins:state.coins,owned:[...state.owned],worn:state.worn,fishCount:state.fishCount,quest:state.quest,played:state.played,casts:state.casts,refillAt,latestCatch:latestSessionCatch,garden:state.garden,gardenWait:Math.max(0,state.gardenReady-clock),animal:state.animal,animalWait:Math.max(0,state.animalReady-clock),claimedCasts:[...claimedCasts].slice(-128),muted,carnival:structuredClone(carnival)}),
+  ():Progress=>({version:1,coins:state.coins,owned:[...state.owned],worn:state.worn,fishCount:state.fishCount,quest:state.quest,played:state.played,casts:state.casts,refillAt,latestCatch:latestSessionCatch,garden:state.garden,gardenWait:Math.max(0,state.gardenReady-clock),animal:state.animal,animalWait:Math.max(0,state.animalReady-clock),claimedCasts:[...claimedCasts].slice(-128),muted,assisted,carnival:structuredClone(carnival)}),
   saved=>{
-   if(fair.active())fair.close();
+   const keepFreeGame=fair.active();
+   assisted=saved.assisted??false;
    carnival=saved.carnival?structuredClone(saved.carnival):newCarnival();
    state.coins=saved.coins;state.owned=new Set(saved.owned);state.worn=saved.worn;state.fishCount=saved.fishCount;state.quest=saved.quest;state.played=saved.played;state.casts=Math.min(saved.casts,settings.get('maxCasts'));refillAt=saved.refillAt;
    latestSessionCatch=saved.latestCatch;state.garden=saved.garden;state.gardenReady=clock+saved.gardenWait;state.animal=saved.animal;state.animalReady=clock+saved.animalWait;muted=saved.muted;
    claimedCasts.clear();saved.claimedCasts.forEach(id=>claimedCasts.add(id));
    (player.body.material as T.MeshStandardMaterial).color.set(outfits[state.worn].color);
-   state.fishing=null;state.modal='';$('modal').innerHTML='';fishPanel();updateQuest();restored=true;
+   state.fishing=null;state.modal=keepFreeGame?'Hội chợ':'';$('modal').innerHTML='';fishPanel();updateQuest();restored=true;
    $('mute').textContent=muted?'♪̸':'♫';lastSaveSignature='';lastProgressSave=clock;
   },
   text=>{$('savestatus').textContent=text;},
@@ -115,7 +134,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  function wear(i:number){if(!saves.canChange())return toast('Đang tải tiến độ, đợi một chút nhé.');if(restored&&!state.owned.has(i))return toast('Áo này chưa sở hữu. Ghé tủ đồ trong phố để mua nhé.');state.worn=i;if(!state.started&&!restored)state.owned=new Set([0,i]);(player.body.material as T.MeshStandardMaterial).color.set(outfits[i].color);sound(640);}
  outfits.forEach((o,i)=>{const b=document.createElement('button');b.className='swatch';b.style.background=o.color;b.ariaLabel=o.name;b.onclick=()=>wear(i);$('swatches').append(b);});
  const random=document.createElement('button');random.textContent='⚄';random.ariaLabel='Chọn ngẫu nhiên';random.onclick=()=>wear(Math.floor(Math.random()*4));$('swatches').append(random);
- $('enter').onclick=()=>{if(!saves.canChange())return toast('Đang tải tiến độ, đợi một chút nhé.');if(!restored)state.owned=new Set([state.worn,0]);state.started=true;ui.classList.add('playing');$('welcome').remove();for(const id of ['objective','actions','hint','stick','touchbuttons'])$(id).classList.remove('hidden');toast('Ông Tư: Chào '+state.name+'! Ghé bên hồ câu cá với bác nhé.');sound();updateQuest();};
+ $('enter').onclick=()=>{if(!restored&&saves.canChange())state.owned=new Set([state.worn,0]);state.started=true;ui.classList.add('playing');$('welcome').remove();for(const id of ['objective','actions','hint','stick','touchbuttons'])$(id).classList.remove('hidden');toast('Ông Tư: Chào '+state.name+'! Ghé bên hồ câu cá với bác nhé.');sound();updateQuest();};
  $('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'♪̸':'♫';if(!muted)sound();};
  function wardrobe(){if(!saves.canChange())return toast('Chưa tải được tiến độ. Bấm trạng thái lưu để thử lại.');modal('Tủ đồ của bạn','<p class="sub">Mua một lần, mặc ngay trong phiên này.</p>'+outfits.map((o,i)=>'<div class="row"><span class="shirt" style="color:'+o.color+'">♟</span><div><b>'+o.name+'</b><div class="sub">'+(state.owned.has(i)?'Đã sở hữu':o.price+' xu')+'</div></div><button data-wear="'+i+'">'+(state.worn===i?'Đang mặc':state.owned.has(i)?'Mặc':'Mua')+'</button></div>').join(''));
   document.querySelectorAll<HTMLButtonElement>('[data-wear]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.wear),o=outfits[i];if(state.owned.has(i)){wear(i);wardrobe();return;}if(state.coins<o.price){toast('Cần thêm '+(o.price-state.coins)+' xu. Câu cá cùng ông Tư nhé!');return;}modal('Mua '+o.name+'?','<p>Đổi '+o.price+' xu lấy áo và mặc ngay.</p><button id="cancelbuy">Quay lại</button> <button class="primary" id="buy">Mua · '+o.price+' xu</button>');$('cancelbuy').onclick=wardrobe;$('buy').onclick=()=>{state.coins-=o.price;state.owned.add(i);wear(i);if(state.quest===2)state.quest=3;updateQuest();burst();toast('Tiệm Mây: '+state.name+' mặc màu này thật hợp!');wardrobe();};});
@@ -190,7 +209,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
   if(state.played>=settings.get('unlockSeconds')*2)$('animal').onclick=animal;
  }
  function interactPlace(i:number){
-  if(i>=9){state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;carnivalUI.open(i-9);return;}
+  if(i>=9){if(!saves.canChange()){modal('Đang tải tiến độ','<p>Trò dùng vé cần tải ví trước. Bạn có thể chơi ngay 2048, Chim bay hoặc Ném vòng miễn phí trong danh sách trò.</p><button id="backgames">Chọn trò miễn phí</button>');$('backgames').onclick=gamePicker;return;}state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;carnivalUI.open(i-9);return;}
   if(i>=6){state.fishing=null;fishPanel();closeModal();path=[];pendingPlace=-1;state.modal='Hội chợ';fair.open(i-6);return;}
   if(i===5){boardPanel();return;}
   if(!saves.canChange())return toast('Đang tải tiến độ.');
@@ -222,9 +241,9 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
  const stick=$('stick');stick.onpointerdown=e=>{stick.setPointerCapture(e.pointerId);moveStick(e);};function moveStick(e:PointerEvent){const r=stick.getBoundingClientRect(),x=(e.clientX-r.left-r.width/2)/(r.width*.35),y=(e.clientY-r.top-r.height/2)/(r.height*.35),len=Math.max(1,Math.hypot(x,y));input.setStick(x/len,y/len);$('knob').style.transform='translate('+x/len*33+'px,'+y/len*33+'px)';}stick.onpointermove=e=>{if(stick.hasPointerCapture(e.pointerId))moveStick(e);};const stopStick=()=>{input.setStick(0,0);$('knob').style.transform='';};stick.onpointerup=stopStick;stick.onpointercancel=stopStick;
  window.addEventListener('keydown',e=>{if(e.code==='Tab'&&state.modal){const buttons=Array.from($('modal').querySelectorAll<HTMLElement>('button,input,select'));if(buttons.length){const i=buttons.indexOf(document.activeElement as HTMLElement);if((!e.shiftKey&&i===buttons.length-1)||(e.shiftKey&&i===0)){e.preventDefault();buttons[e.shiftKey?buttons.length-1:0].focus();}}}});
  const resize=()=>{const w=host.clientWidth,h=host.clientHeight,s=Math.min(Math.max(w,h)/1280,Math.min(w,h)/720);renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();ui.style.width=w/s+'px';ui.style.height=h/s+'px';ui.style.transform='scale('+s+')';};new ResizeObserver(resize).observe(host);resize();
- void me().then(user=>{if(!user){saves.unavailable();return;}state.name=user.username;$('username').textContent=user.username;nameLabel.material.map?.dispose();const replacement=label(user.username+' · Cư dân mới');nameLabel.material.map=replacement.material.map;nameLabel.material.needsUpdate=true;if(import.meta.env.DEV)state.dev=user.source==='dev';void saves.load(user.email).then(()=>{if(state.started)toast('Ông Tư: Chào '+state.name+'!');});void presence.connect();});
+ void me().then(user=>{if(!user){saves.unavailable();return;}adminIdentity=user;adminButton.hidden=!canUseAdminTools(adminIdentity);state.name=user.username;$('username').textContent=user.username;nameLabel.material.map?.dispose();const replacement=label(user.username+' · Cư dân mới');nameLabel.material.map=replacement.material.map;nameLabel.material.needsUpdate=true;if(import.meta.env.DEV)state.dev=user.source==='dev';void saves.load(user.email).then(()=>{if(state.started)toast('Ông Tư: Chào '+state.name+'!');});void presence.connect();});
  const timer=new T.Timer(),camTarget=new T.Vector3(),look=new T.Vector3(),move=new T.Vector3(),velocity=new T.Vector3();let fpsTime=0,fpsFrames=0,lastMusic=0,lastUnlock=0;
- window.__GAME_STATE__=()=>({scene:state.fishing?'fishing':state.modal|| (state.started?'town':'welcome'),running:state.started,entities:1+world.npcs.length+fairNpcs.length+world.crowd.length+presence.count(),player:{x:player.root.position.x,y:player.root.position.y,z:player.root.position.z},score:state.coins,custom:{...fair.state(),luck:carnival.luck,carnivalTickets:carnival.tickets,components:carnival.components.length,carnivalWorkers:carnival.workers,fishCount:state.fishCount,casts:state.casts,phase:state.fishing?.phase||'none',practice:state.fishing?.phase==='casting'?state.fishing.practice:state.practice,played:state.played,quest:state.quest,drawCalls:renderer.info.render.calls,sessionOnly:!saves.cloudReady(),saveStatus:$('savestatus').textContent||'',roomStatus:presence.status(),remotePlayers:presence.count(),catchSource:'simulation'}});
+ window.__GAME_STATE__=()=>({scene:state.fishing?'fishing':state.modal|| (state.started?'town':'welcome'),running:state.started,entities:1+world.npcs.length+fairNpcs.length+world.crowd.length+presence.count(),player:{x:player.root.position.x,y:player.root.position.y,z:player.root.position.z},score:state.coins,custom:{...fair.state(),adminTools:canUseAdminTools(adminIdentity),assisted,luck:carnival.luck,carnivalTickets:carnival.tickets,components:carnival.components.length,carnivalWorkers:carnival.workers,fishCount:state.fishCount,casts:state.casts,phase:state.fishing?.phase||'none',practice:state.fishing?.phase==='casting'?state.fishing.practice:state.practice,played:state.played,quest:state.quest,drawCalls:renderer.info.render.calls,sessionOnly:!saves.cloudReady(),saveStatus:$('savestatus').textContent||'',roomStatus:presence.status(),remotePlayers:presence.count(),catchSource:'simulation'}});
  if(import.meta.env.DEV)window.__GAME_TEST__={openFishing:()=>{state.started=true;openFish();},win:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock-settings.get('needleSeconds')*.5,practice:false};fishAction();},lose:()=>{if(!state.started)return;state.fishing={phase:'casting',id:crypto.randomUUID(),started:clock,practice:false};fishAction();},unlock:()=>{state.played=settings.get('unlockSeconds')*2+1;},caro:()=>startCaro(),fair:(index:number)=>{if(state.started&&index>=0&&index<9)interactPlace(6+index);}};
  $('loadbar').style.width='100%';$('loadpercent').textContent='100%';setTimeout(()=>{$('loading').classList.add('out');setTimeout(()=>$('loading').remove(),700);},350);
  renderer.setAnimationLoop(time=>{

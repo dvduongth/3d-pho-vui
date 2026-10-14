@@ -6,7 +6,7 @@ export type Progress={
  version:1; coins:number; owned:number[]; worn:number; fishCount:number; quest:number;
  played:number; casts:number; refillAt:number; latestCatch:SessionCatch|null;
  garden:number; gardenWait:number; animal:number; animalWait:number;
- claimedCasts:string[]; muted:boolean; carnival?:Carnival;
+ claimedCasts:string[]; muted:boolean; carnival?:Carnival; assisted?:boolean;
 };
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
 export function parseProgress(v:unknown):Progress|null{
@@ -18,11 +18,13 @@ export function parseProgress(v:unknown):Progress|null{
  if(!Array.isArray(v.owned)||v.owned.length>4||!v.owned.every(n=>Number.isInteger(n)&&n>=0&&n<4)||!v.owned.includes(v.worn))return null;
  if(!Array.isArray(v.claimedCasts)||v.claimedCasts.length>128||!v.claimedCasts.every(id=>typeof id==='string'&&id.length<=64))return null;
  if(typeof v.muted!=='boolean')return null;
- if(v.carnival!==undefined&&!parseCarnival(v.carnival))return null;
+ if(v.assisted!==undefined&&typeof v.assisted!=='boolean')return null;
+ const carnival=v.carnival===undefined?undefined:parseCarnival(v.carnival);
+ if(carnival===null)return null;
  if(v.latestCatch!==null){
   if(!object(v.latestCatch)||v.latestCatch.source!=='simulation'||!['Cá rô','Cá chép','Cá lóc'].includes(v.latestCatch.species as string)||typeof v.latestCatch.weight!=='number'||!Number.isFinite(v.latestCatch.weight)||v.latestCatch.weight<.25||v.latestCatch.weight>3.2)return null;
  }
- return v as Progress;
+ return carnival?{...v,carnival} as Progress:v as Progress;
 }
 
 /** A single in-flight writer. A failed read never authorizes overwriting a cloud save. */
