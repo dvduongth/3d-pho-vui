@@ -18,6 +18,7 @@ import {newCarnival} from './carnival';
 import {createCarnivalUI} from './carnival-ui';
 import {canUseAdminTools,supplyCarnival} from './admin-tools';
 import './access.css';
+import {createCarnivalStage} from './carnival-stage';
 let carnival=newCarnival(),assisted=false;
 let adminIdentity:{username:string}|null=null;
 
@@ -107,6 +108,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
   text=>{$('savestatus').textContent=text;},
   {load:loadSaveResult,store:storeSave},localStorage
  );
+ const carnivalStage=createCarnivalStage(scene,camera);
  const carnivalUI=createCarnivalUI(()=>carnival,()=>saves.changed(),modal,sound,()=>saves.canChange());
  const presence=createPresence(scene,
   ()=>({x:player.root.position.x,y:player.root.position.y,z:player.root.position.z,yaw:player.root.rotation.y,shirt:state.worn}),
@@ -284,6 +286,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
   presence.update(dt,clock);
   if(saves.canChange()){const signature=[state.coins,state.worn,[...state.owned].join(','),state.fishCount,state.quest,state.casts,state.garden,state.animal,muted].join('|');if(signature!==lastSaveSignature||(state.started&&clock-lastProgressSave>15)){lastSaveSignature=signature;lastProgressSave=clock;saves.changed();}}
   if(fair.active())fair.update(dt);
+  carnivalStage.update(dt,carnivalUI.view(),carnival);
   sky.position.copy(camera.position);
   renderer.render(scene,camera);
  });

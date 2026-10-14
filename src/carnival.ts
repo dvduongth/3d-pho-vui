@@ -1,5 +1,5 @@
 export const stalls=['Thử sức mạnh','Ném vòng chai','Bắn bia','Đua ngựa súng nước','Ném chai sữa','Hồ vịt'];
-export type Roll={natural:number;bonus:number[];penalty:number;total:number;before:number;after:number};
+export type Roll={natural:number;bonus:number[];penalty:number;total:number;before:number;after:number;progress?:{step:number;bottles:number;others:number}};
 export type Attempt={stall:number;step:number;bottles:number;wisdom:boolean;insight:boolean;intTried:boolean;others:number};
 export type Carnival={luck:number;silver:number;gold:number;tickets:number;small:number;medium:number;big:number;components:number[];workers:number;recruits:number;milkSolved:boolean;milkInsight:boolean;milkIntTried:boolean;attempt:Attempt|null;log:string;};
 export const newCarnival=():Carnival=>({luck:1,silver:12,gold:0,tickets:0,small:0,medium:0,big:0,components:[],workers:0,recruits:0,milkSolved:false,milkInsight:false,milkIntTried:false,attempt:null,log:'Chào mừng tới hội chợ! Bạn bắt đầu với 12 bạc, 0 vàng và 1 Luck. Mua vé, chơi ở sáu quầy và thu thập đủ 6 linh kiện trên nơ thú bông.'});
@@ -57,5 +57,6 @@ export function resolve(c:Carnival,action:Action,count:number,random=die){
   }
   if(a.stall===5){if(r.total===20){bigPrize(c,5);message='Tổng đúng 20! Vịt mang quà lớn và linh kiện.';}else if(r.natural%2===0){c.small++;message='Mặt d20 chẵn: 1 quà nhỏ.';}else message='Chú vịt này không mang quà.';c.attempt=null;}
  }
+ r.progress={step:a.step,bottles:a.bottles,others:a.others};
  c.log=describe(r)+' · '+message;return r;
 }

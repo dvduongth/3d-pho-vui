@@ -1,5 +1,7 @@
 import {begin,trade,resolve,stalls,bigPrize,die,type Carnival,type Action} from './carnival';
 import './carnival.css';
+import type {CarnivalView} from './carnival-stage';
+import './carnival-screen.css';
 const rules=[
  '1 vé / lượt. Athletics DC 19 để rung chuông và lấy quà lớn; mọi kết quả khác được quà nhỏ.',
  '1 vé / 3 vòng. Chọn chai lớn AC 19 hoặc chai nhỏ: mặt d20 là bội số của 3 nhận quà nhỏ. Không có cộng proficiency ném đĩa.',
@@ -10,6 +12,7 @@ const rules=[
 ];
 export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:string,body:string)=>void,sound:()=>void,canChange:()=>boolean){
  let selected=0,count=0;
+ const view:CarnivalView={stall:0,serial:0,roll:null,action:""};
  const $=(id:string)=>document.getElementById(id)!;
  function mutate(fn:(c:Carnival)=>void){if(!canChange())return;fn(get());changed();sound();render();}
  function render(){
@@ -36,10 +39,10 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
   const input=$('c-dice') as HTMLInputElement;
   function preview(){count=Number(input.value);const valid=Number.isSafeInteger(count)&&count>=0&&count<=10000;input.setCustomValidity(valid?'':'Nhập số nguyên từ 0 đến 10.000');$('c-preview').textContent=!valid?'Số d4 không hợp lệ.':count?'Dùng '+Math.min(Math.max(0,c.luck),count)+' Luck có sẵn; vay '+Math.max(0,count-Math.max(0,c.luck))+' → Luck '+(c.luck-count)+' trước kết quả.':c.luck<0?'Không vay: −1d4; hồi 1 Luck.':'Gieo d20, không dùng Luck.';}
   input.oninput=preview;preview();
-  function button(text:string,action:Action){const b=document.createElement('button');b.textContent=text;b.className='primary';b.onclick=()=>{preview();if(!input.reportValidity())return;mutate(c=>{resolve(c,action,count);count=0;});};$('c-rolls').append(b);}
-  if(a){if(a.stall===4&&a.step===2&&!a.wisdom)button('Nhìn ra mẹo · Wisdom DC 12','wisdom');else{button(a.stall===1?'Ném vào chai lớn · AC 19':'Gieo d20','play');if(a.stall===1)button('Ném vào chai nhỏ','small-ring');}}
+  function button(text:string,action:Action){const b=document.createElement('button');b.textContent=text;b.className='primary';b.onclick=()=>{preview();if(!input.reportValidity())return;mutate(c=>{const result=resolve(c,action,count);if(result){view.roll=result;view.serial++;view.action=action;}count=0;});};$('c-rolls').append(b);}
+  if(a){if(a.stall===4&&a.step===2&&!a.wisdom)button('Nhìn ra mẹo · Wisdom DC 12','wisdom');else{button(['Vung búa!','Ném chai lớn · AC 19','Bắn bia!','Bắt đầu đua!','Ném bóng!','Chọn vịt!'][selected],'play');if(a.stall===1)button('Ném vào chai nhỏ','small-ring');}}
   else{
-   $('c-start').onclick=()=>mutate(c=>{if(!c.tickets&&c.silver>0){c.silver--;c.tickets++;}if(!begin(c,selected))c.log='Cần 1 vé để bắt đầu. Mua 12 vé bằng 1 vàng, hoặc dùng Công cụ thử nghiệm nếu bạn là duongdv.';});
+   $('c-start').onclick=()=>mutate(c=>{view.roll=null;view.action='';view.serial++;if(!c.tickets&&c.silver>0){c.silver--;c.tickets++;}if(!begin(c,selected))c.log='Cần 1 vé để bắt đầu. Mua 12 vé bằng 1 vàng, hoặc dùng Công cụ thử nghiệm nếu bạn là duongdv.';});
    $('c-silver').onclick=()=>mutate(c=>{if(c.silver>=1){c.silver--;c.tickets++;c.log='Đã mua 1 vé bằng 1 bạc.';}else c.log='Không đủ bạc. Có thể đổi quà đã có hoặc thử lấy thú bông trên giá.';});
    $('c-gold').onclick=()=>mutate(c=>{if(c.gold>=1){c.gold--;c.tickets+=12;c.log='Đã mua 12 vé bằng 1 vàng.';}else c.log='Không đủ vàng.';});
    if(selected===3){const line=document.createElement('p');line.textContent='Đã mời '+c.recruits+'/5 NPC (đối thủ mô phỏng có vé riêng).';$('c-rolls').append(line);if(c.recruits<5)button('Mời thêm NPC · Charisma DC 12','recruit');}
@@ -49,6 +52,29 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
   $('c-big').onclick=()=>mutate(c=>{c.log=trade(c,'big',selected)?'Đã đổi 3 quà vừa lấy thú bông lớn và linh kiện.':'Cần 3 quà vừa.';});
   $('c-steal').onclick=()=>mutate(c=>{if(c.components.includes(selected)){c.log='Linh kiện quầy này đã nằm trong túi.';return;}bigPrize(c,selected);c.workers++;c.log='Bạn lấy thú bông. Một nhân viên chạy tới!';});
   $('c-fight').onclick=()=>mutate(c=>{if(!c.workers){c.log='Không có nhân viên đang đối đầu.';return;}const n=die(4);c.workers+=n;c.log='Gây gổ thu hút thêm 1d4 = '+n+' nhân viên. Tổng '+c.workers+' người.';});
+  view.stall=selected;
+  root.id='carnival-screen';
+  const wallet=root.querySelector('.carnival-wallet')!,prizes=root.querySelector('.carnival-prizes')!,rule=root.querySelector('.carnival-rule')!,log=$('carnival-log');
+  const header=document.createElement('header');header.className='c-game-header panel';header.innerHTML='<div><small>HỘI CHỢ · MÔ PHỎNG CÁ NHÂN</small><h2>'+stalls[selected]+'</h2></div>';header.append(wallet);
+  const left=document.createElement('aside');left.className='c-game-info panel';left.innerHTML='<h3>'+(['Rung chuông trên đỉnh','Chiếc vòng may mắn','Ba bia, một lượt','Cùng đua về đích','Giải mẹo tháp chai','Vịt nào mang quà?'][selected])+'</h3>';
+  const status=document.createElement('p');status.className='c-game-status';status.textContent=a?'Đang chơi · Lượt '+Math.min(3,a.step+1)+(selected===1||selected===2||selected===4?'/3':''):view.roll&&view.action!=='recruit'?'Kết thúc lượt · Chơi lại bên phải':'Sẵn sàng · Bắt đầu bên phải';left.append(status,prizes);
+  const help=document.createElement('details');help.innerHTML='<summary>Cách chơi</summary>';help.append(rule);left.append(help);
+  const bag=document.createElement('button');bag.textContent='Vé, quà & linh kiện';left.append(bag);
+  const right=document.createElement('aside');right.className='c-game-controls panel';right.innerHTML='<h3>'+ (a?'Chọn Luck rồi hành động':'Sẵn sàng chơi?')+'</h3>';right.append(controls);
+  const footer=document.createElement('footer');footer.className='c-game-result panel';
+  const dice=document.createElement('strong');dice.className='c-game-die';dice.textContent=view.roll?String(view.roll.total):'d20';footer.append(dice,log);
+  const drawer=document.createElement('section');drawer.className='c-game-drawer panel';drawer.hidden=true;
+  const back=document.createElement('button');back.textContent='← Trở lại sân chơi';back.onclick=()=>{drawer.hidden=true;bag.focus();};drawer.append(back);
+  const tickets=document.createElement('div');tickets.className='carnival-buttons';
+  for(const id of ['c-silver','c-gold']){const button=document.getElementById(id);if(button)tickets.append(button);}
+  drawer.append(tickets);
+  Array.from(root.children).forEach(child=>drawer.append(child));
+  root.replaceChildren(header,left,right,footer,drawer);
+  bag.onclick=()=>{drawer.hidden=false;back.focus();};
+  const close=document.getElementById('close')!;close.textContent='← Về phố';
+  if(!a&&view.roll&&view.action!=='recruit'&&c.tickets)$('c-start').textContent='Chơi lại · 1 vé';
+  const primary=right.querySelector<HTMLElement>('button.primary');primary?.focus();
+
  }
- return {open:(stall:number)=>{if(!canChange())return;selected=stall;count=0;render();}};
+ return {view:()=>document.getElementById('carnival-screen')?view:null,open:(stall:number)=>{if(!canChange())return;selected=stall;count=0;view.roll=null;view.action='';view.serial++;render();}};
 }
