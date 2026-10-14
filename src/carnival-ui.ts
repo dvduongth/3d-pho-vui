@@ -1,7 +1,7 @@
 import {forceAt} from './carnival-skill';
 import {settings} from './settings';
 import {input as gameInput} from './input';
-import {begin,trade,resolve,stalls,bigPrize,die,type Carnival,type Action} from './carnival';
+import {begin,trade,resolve,selectStall,stalls,bigPrize,die,type Carnival,type Action} from './carnival';
 import './carnival.css';
 import type {CarnivalView} from './carnival-stage';
 import './carnival-screen.css';
@@ -31,7 +31,7 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
  function mutate(fn:(c:Carnival)=>void){if(!canChange())return;fn(get());changed();sound();render();}
  function render(){
   charge=null;
-  const c=get(),a=c.attempt;if(a)selected=a.stall;
+  const c=get(),a=c.attempt;
   show(stalls[selected],`<div class="carnival-ui"><div class="carnival-wallet"><b>✦ Luck ${c.luck}</b><span>🎟 ${c.tickets} vé</span><span>${c.silver} bạc · ${c.gold} vàng</span></div>
   <p class="carnival-rule">${rules[selected]}</p><div class="carnival-prizes">Quà nhỏ ${c.small} · Vừa ${c.medium} · Lớn ${c.big} · Linh kiện ${c.components.length}/6</div>
   ${c.components.length===6?'<p class="carnival-win">✦ Hoàn thành bộ 6 linh kiện! Bạn vẫn có thể chơi tiếp. Nợ Luck còn lại được giữ nguyên.</p>':'<p><b>Mục tiêu: thu thập đủ 6 linh kiện.</b> Thắng quà lớn hoặc đổi quà tại từng quầy để lấy linh kiện trên nơ thú bông.</p>'}
@@ -105,5 +105,5 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
   const primary=right.querySelector<HTMLElement>('button.primary');primary?.focus();
 
  }
- return {tick,view:()=>document.getElementById('carnival-screen')?view:null,open:(stall:number)=>{if(!canChange())return;cancelCharge();selected=stall;count=0;lastForce=0;view.roll=null;view.action='';view.serial++;render();}};
+ return {tick,view:()=>document.getElementById('carnival-screen')?view:null,open:(stall:number)=>{if(!canChange())return;cancelCharge();if(!selectStall(get(),stall))return;changed();selected=stall;count=0;lastForce=0;view.roll=null;view.action='';view.serial++;render();}};
 }

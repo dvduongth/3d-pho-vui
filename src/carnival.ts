@@ -2,7 +2,7 @@ import {skillResult} from './carnival-skill.ts';
 export const stalls=['Thử sức mạnh','Ném vòng chai','Bắn bia','Đua ngựa súng nước','Ném chai sữa','Hồ vịt'];
 export type Roll={skill?:ReturnType<typeof skillResult>;natural:number;bonus:number[];penalty:number;total:number;before:number;after:number;progress?:{step:number;bottles:number;others:number}};
 export type Attempt={stall:number;step:number;bottles:number;wisdom:boolean;insight:boolean;intTried:boolean;others:number};
-export type Carnival={luck:number;silver:number;gold:number;tickets:number;small:number;medium:number;big:number;components:number[];workers:number;recruits:number;milkSolved:boolean;milkInsight:boolean;milkIntTried:boolean;attempt:Attempt|null;log:string;};
+export type Carnival={luck:number;silver:number;gold:number;tickets:number;small:number;medium:number;big:number;components:number[];workers:number;recruits:number;milkSolved:boolean;milkInsight:boolean;milkIntTried:boolean;attempt:Attempt|null;pausedAttempts?:Attempt[];log:string;};
 export const newCarnival=():Carnival=>({luck:1,silver:12,gold:0,tickets:0,small:0,medium:0,big:0,components:[],workers:0,recruits:0,milkSolved:false,milkInsight:false,milkIntTried:false,attempt:null,log:'Chào mừng tới hội chợ! Bạn bắt đầu với 12 bạc, 0 vàng và 1 Luck. Mua vé, chơi ở sáu quầy và thu thập đủ 6 linh kiện trên nơ thú bông.'});
 export function parseCarnival(value:unknown):Carnival|null{
  if(!value||typeof value!=='object')return null;const c=structuredClone(value) as Carnival;
@@ -11,10 +11,24 @@ export function parseCarnival(value:unknown):Carnival|null{
  if(c.milkIntTried===undefined)c.milkIntTried=c.attempt?.intTried??false;
  for(const k of ['luck','silver','gold','tickets','small','medium','big','workers','recruits'] as const)if(!Number.isSafeInteger(c[k])||(k!=='luck'&&c[k]<0))return null;
  if(c.recruits>5||typeof c.milkSolved!=='boolean'||typeof c.milkInsight!=='boolean'||typeof c.milkIntTried!=='boolean'||typeof c.log!=='string'||c.log.length>2000||!Array.isArray(c.components)||c.components.length>6||new Set(c.components).size!==c.components.length||!c.components.every(i=>Number.isInteger(i)&&i>=0&&i<6))return null;
- const a=c.attempt;if(a!==null){if(!a||typeof a!=='object')return null;for(const [key,max] of [['stall',5],['step',3],['bottles',18],['others',5]] as const)if(!Number.isInteger(a[key])||a[key]<0||a[key]>max)return null;for(const key of ['wisdom','insight','intTried'] as const)if(typeof a[key]!=='boolean')return null;}
+ const validAttempt=(a:Attempt)=>{if(!a||typeof a!=='object')return false;for(const [key,max] of [['stall',5],['step',3],['bottles',18],['others',5]] as const)if(!Number.isInteger(a[key])||a[key]<0||a[key]>max)return false;for(const key of ['wisdom','insight','intTried'] as const)if(typeof a[key]!=='boolean')return false;return true;};
+ if(c.attempt!==null&&!validAttempt(c.attempt))return null;
+ if(c.pausedAttempts!==undefined){if(!Array.isArray(c.pausedAttempts)||c.pausedAttempts.length>6||!c.pausedAttempts.every(validAttempt))return null;const ids=c.pausedAttempts.map(a=>a.stall);if(c.attempt)ids.push(c.attempt.stall);if(new Set(ids).size!==ids.length)return null;}
  return structuredClone(c);
 }
 export const die=(sides:number)=>1+Math.floor(Math.random()*sides);
+/** Changing screens suspends paid attempts instead of changing the requested game. */
+export function selectStall(c:Carnival,stall:number){
+ if(!Number.isInteger(stall)||stall<0||stall>=stalls.length)return false;
+ if(c.attempt?.stall===stall)return true;
+ const paused=c.pausedAttempts??[];
+ if(c.attempt)paused.push(c.attempt);
+ const index=paused.findIndex(a=>a.stall===stall);
+ c.attempt=index<0?null:paused.splice(index,1)[0];
+ c.pausedAttempts=paused;
+ c.log=c.attempt?'Tiếp tục '+stalls[stall]+' · Lượt đã trả vé được giữ nguyên.':'Đã mở '+stalls[stall]+'. Bấm Chơi để bắt đầu lượt mới.';
+ return true;
+}
 export function rollLuck(c:Carnival,count:number,modifier=0,random=die):Roll{
  if(!Number.isSafeInteger(count)||count<0||count>10000||!Number.isSafeInteger(c.luck-count))throw Error('Số xúc xắc không hợp lệ');
  const before=c.luck;const penalty=before<0&&count===0?random(4):0;
