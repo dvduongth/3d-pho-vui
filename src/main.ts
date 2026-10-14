@@ -252,6 +252,7 @@ gl_FragColor=vec4(mix(bottom,top,h),1.);
   timer.update(time);const dt=Math.min(timer.getDelta(),.1);clock+=dt;const active=state.started&&!document.hidden;if(active)state.played+=dt;
   const unlock=Math.floor(state.played/settings.get('unlockSeconds'));if(unlock>lastUnlock){lastUnlock=unlock;if(unlock===1)toast('Ngày mới! Vườn, xe và ảnh đã mở trong phiên.');if(unlock===2)toast('Cô Lan: Ghé thăm đàn gà cùng cô nhé.');}
   if(Date.now()-refillAt>=settings.get('refillMinutes')*60000){const count=Math.floor((Date.now()-refillAt)/(settings.get('refillMinutes')*60000));state.casts=Math.min(settings.get('maxCasts'),state.casts+count);refillAt+=count*settings.get('refillMinutes')*60000;}
+  carnivalUI.tick(dt);
   if(!fair.active()&&input.pressed('Escape')){if(state.modal)closeModal();else if(state.fishing){state.fishing=null;fishPanel();}}
   const space=!fair.active()&&input.pressed('Space'),inter=!fair.active()&&input.pressed('KeyE');
   if(active&&!state.modal){if(state.fishing){if(space||inter)fishAction();}else{if(inter)interact();if(space&&jumpY===0){jumpV=2*settings.get('jumpHeight')/settings.get('jumpApex');sound(430);}}}

@@ -1,3 +1,6 @@
+import {forceAt} from './carnival-skill';
+import {settings} from './settings';
+import {input as gameInput} from './input';
 import {begin,trade,resolve,stalls,bigPrize,die,type Carnival,type Action} from './carnival';
 import './carnival.css';
 import type {CarnivalView} from './carnival-stage';
@@ -11,11 +14,23 @@ const rules=[
  '1 vé / lượt. Tổng sau Luck đúng 20 nhận quà lớn. Nếu không, mặt d20 chẵn nhận quà nhỏ. Không cộng chỉ số.'
 ];
 export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:string,body:string)=>void,sound:()=>void,canChange:()=>boolean){
- let selected=0,count=0;
+ let selected=0,count=0,lastForce=0;
+ let charge:{button:HTMLButtonElement;action:Action;amount:number;elapsed:number;traverse:number}|null=null;
+ function cancelCharge(){if(!charge)return;charge=null;const field=document.getElementById('c-dice') as HTMLInputElement|null;if(field)field.disabled=false;document.querySelectorAll<HTMLButtonElement>('#c-rolls button').forEach(b=>{b.disabled=false;if(b.dataset.skill)b.textContent=b.dataset.skillLabel||'Căn lực';});const hint=document.getElementById('c-force-hint');if(hint)hint.textContent='Đã huỷ căn lực · Chưa dùng Luck hoặc mất lượt';}
+ function finishCharge(){if(!charge)return;const shot=charge;charge=null;if(!document.getElementById('carnival-screen')||!canChange())return;lastForce=forceAt(shot.elapsed,shot.traverse);mutate(c=>{const result=resolve(c,shot.action,shot.amount,undefined,lastForce);if(result){view.roll=result;view.serial++;view.action=shot.action;}count=0;});}
+ function tick(dt:number){
+  const active=document.getElementById('carnival-screen');if(!active||document.hidden){cancelCharge();return;}
+  const typing=document.activeElement instanceof HTMLInputElement;
+  if(!typing&&gameInput.pressed('Space')&&active.querySelector<HTMLElement>('.c-game-drawer')?.hidden){if(charge)finishCharge();else{const focused=document.activeElement as HTMLElement;const b=focused?.hasAttribute('data-skill')?focused:active.querySelector<HTMLElement>('[data-skill]');b?.click();}}
+  if(charge){charge.elapsed+=dt;const f=forceAt(charge.elapsed,charge.traverse);$('c-force-needle').style.left=f*100+'%';$('c-force-hint').textContent='Thả tay / bấm lần nữa khi kim ở tâm · '+Math.round(f*100)+'% lực';}
+ }
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelCharge();});window.addEventListener('blur',cancelCharge);
+
  const view:CarnivalView={stall:0,serial:0,roll:null,action:""};
  const $=(id:string)=>document.getElementById(id)!;
  function mutate(fn:(c:Carnival)=>void){if(!canChange())return;fn(get());changed();sound();render();}
  function render(){
+  charge=null;
   const c=get(),a=c.attempt;if(a)selected=a.stall;
   show(stalls[selected],`<div class="carnival-ui"><div class="carnival-wallet"><b>✦ Luck ${c.luck}</b><span>🎟 ${c.tickets} vé</span><span>${c.silver} bạc · ${c.gold} vàng</span></div>
   <p class="carnival-rule">${rules[selected]}</p><div class="carnival-prizes">Quà nhỏ ${c.small} · Vừa ${c.medium} · Lớn ${c.big} · Linh kiện ${c.components.length}/6</div>
@@ -39,7 +54,17 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
   const input=$('c-dice') as HTMLInputElement;
   function preview(){count=Number(input.value);const valid=Number.isSafeInteger(count)&&count>=0&&count<=10000;input.setCustomValidity(valid?'':'Nhập số nguyên từ 0 đến 10.000');$('c-preview').textContent=!valid?'Số d4 không hợp lệ.':count?'Dùng '+Math.min(Math.max(0,c.luck),count)+' Luck có sẵn; vay '+Math.max(0,count-Math.max(0,c.luck))+' → Luck '+(c.luck-count)+' trước kết quả.':c.luck<0?'Không vay: −1d4; hồi 1 Luck.':'Gieo d20, không dùng Luck.';}
   input.oninput=preview;preview();
-  function button(text:string,action:Action){const b=document.createElement('button');b.textContent=text;b.className='primary';b.onclick=()=>{preview();if(!input.reportValidity())return;mutate(c=>{const result=resolve(c,action,count);if(result){view.roll=result;view.serial++;view.action=action;}count=0;});};$('c-rolls').append(b);}
+  function button(text:string,action:Action){
+   const b=document.createElement('button');b.textContent=text;b.className='primary';
+   if(action==='play'||action==='small-ring'){
+    b.textContent='Căn lực · '+text;b.dataset.skill='true';b.dataset.skillLabel=b.textContent;
+    const start=()=>{if(charge||!canChange())return;preview();if(!input.reportValidity())return;charge={button:b,action,amount:count,elapsed:0,traverse:settings.get('needleSeconds')};input.disabled=true;document.querySelectorAll<HTMLButtonElement>('#c-rolls button').forEach(other=>other.disabled=other!==b);b.textContent='Thả tay / bấm để thực hiện';b.focus();};
+    b.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();if(charge)return;start();if(charge)b.setPointerCapture(e.pointerId);};
+    b.onpointerup=()=>{if(charge?.button===b)finishCharge();};b.onpointercancel=cancelCharge;
+    b.onclick=e=>{if(e.detail!==0)return;if(charge?.button===b)finishCharge();else start();};
+   }else b.onclick=()=>{preview();if(!input.reportValidity())return;mutate(c=>{const result=resolve(c,action,count);if(result){view.roll=result;view.serial++;view.action=action;}count=0;});};
+   $('c-rolls').append(b);
+  }
   if(a){if(a.stall===4&&a.step===2&&!a.wisdom)button('Nhìn ra mẹo · Wisdom DC 12','wisdom');else{button(['Vung búa!','Ném chai lớn · AC 19','Bắn bia!','Bắt đầu đua!','Ném bóng!','Chọn vịt!'][selected],'play');if(a.stall===1)button('Ném vào chai nhỏ','small-ring');}}
   else{
    $('c-start').onclick=()=>mutate(c=>{view.roll=null;view.action='';view.serial++;if(!c.tickets&&c.silver>0){c.silver--;c.tickets++;}if(!begin(c,selected))c.log='Cần 1 vé để bắt đầu. Mua 12 vé bằng 1 vàng, hoặc dùng Công cụ thử nghiệm nếu bạn là duongdv.';});
@@ -70,11 +95,15 @@ export function createCarnivalUI(get:()=>Carnival,changed:()=>void,show:(title:s
   drawer.append(tickets);
   Array.from(root.children).forEach(child=>drawer.append(child));
   root.replaceChildren(header,left,right,footer,drawer);
-  bag.onclick=()=>{drawer.hidden=false;back.focus();};
+  if(a&&!(selected===4&&a.step===2&&!a.wisdom)){
+   const meter=document.createElement('section');meter.className='c-force panel';meter.innerHTML='<b>CĂN LỰC · TÂM LÀ CHUẨN</b><div class="c-force-track"><span class="c-force-zone"></span><i id="c-force-needle"></i></div><span id="c-force-hint">Giữ nút rồi thả · Hoặc Space hai lần</span>';root.append(meter);$('c-force-needle').style.left=lastForce*100+'%';
+  }
+  const skillHelp=document.createElement('p');skillHelp.className='c-skill-help';skillHelp.textContent='Căn lực: 0–20 điểm. d20 tạo sai lệch −3…+3; Luck cộng d4. Chai nhỏ và vịt chẵn cần căn chuẩn ít nhất 60%. Natural 1 vẫn hồi Luck; chai sữa natural 20 vẫn chỉ hạ 1 chai.';help.append(skillHelp);
+  bag.onclick=()=>{cancelCharge();drawer.hidden=false;back.focus();};
   const close=document.getElementById('close')!;close.textContent='← Về phố';
   if(!a&&view.roll&&view.action!=='recruit'&&c.tickets)$('c-start').textContent='Chơi lại · 1 vé';
   const primary=right.querySelector<HTMLElement>('button.primary');primary?.focus();
 
  }
- return {view:()=>document.getElementById('carnival-screen')?view:null,open:(stall:number)=>{if(!canChange())return;selected=stall;count=0;view.roll=null;view.action='';view.serial++;render();}};
+ return {tick,view:()=>document.getElementById('carnival-screen')?view:null,open:(stall:number)=>{if(!canChange())return;cancelCharge();selected=stall;count=0;lastForce=0;view.roll=null;view.action='';view.serial++;render();}};
 }

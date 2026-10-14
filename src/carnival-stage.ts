@@ -38,7 +38,7 @@ export function createCarnivalStage(scene:T.Scene,camera:T.PerspectiveCamera){
   const reduced=settings.get<boolean>('reducedMotion'),t=reduced?1:Math.min(1,age/1.1),n=v.roll?.total??0;
   const playing=v.action==='play'||v.action==='small-ring';
   puck.position.y=.5+(v.roll&&playing?Math.min(1,Math.max(0,n/19))*4.5*Math.sin(t*Math.PI/2):0);bell.rotation.z=n>=19&&age<1&&!reduced?Math.sin(age*25)*.15:0;mallet.rotation.z=playing&&age<1?Math.sin(t*Math.PI)*-1.1:0;
-  const ringGood=v.roll&&v.roll.natural!==1&&(v.roll.natural===20||n>=19);
+  const ringGood=v.roll&&(v.roll.skill?n>=19:v.roll.natural!==1&&(v.roll.natural===20||n>=19));
   ring.position.set(v.action==='small-ring'?-1.9:ringGood?0:1.5,1.7+Math.sin(t*Math.PI)*2.5,4*(1-t));ring.visible=v.stall===1&&!!v.roll&&playing;
   const completed=c.attempt?.stall===2?c.attempt.step:v.roll?.progress?.step??0;targets.forEach((target,i)=>target.rotation.x=i<completed?-.7:0);shot.visible=!!v.roll&&playing&&age<1.1;shot.position.set(-2.2+Math.max(0,completed-1)*2.2,1+2.2*t,4*(1-t));
   const others=c.attempt?.stall===3?c.attempt.others:v.roll?.progress?.others??c.recruits;
